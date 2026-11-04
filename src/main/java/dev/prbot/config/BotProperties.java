@@ -5,11 +5,10 @@ import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
-
-import org.springframework.beans.factory.annotation.Value;
+import java.time.Duration;
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.boot.context.properties.bind.DefaultValue;
 import org.springframework.validation.annotation.Validated;
-import org.springframework.beans.factory.annotation.Value;
 
 /** Validated at startup, so a missing secret stops the app instead of failing on the first PR. */
 @Validated
@@ -20,7 +19,8 @@ public record BotProperties(
         @Min(1) int maxDiffChars,
         @Min(1) int maxComments,
         @Valid @NotNull Llm llm,
-        @Valid @NotNull Executor executor) {
+        @Valid @NotNull Executor executor,
+        @Valid @DefaultValue Http http) {
 
     public enum Provider {
         GEMINI,
@@ -56,4 +56,12 @@ public record BotProperties(
     }
 
     public record Executor(@Min(1) int threads, @Min(0) int queueCapacity) {}
+
+    /** Timeouts and retry policy shared by the GitHub and LLM clients. */
+    public record Http(
+            @NotNull @DefaultValue("10s") Duration connectTimeout,
+            @NotNull @DefaultValue("60s") Duration readTimeout,
+            @Min(1) @DefaultValue("3") int maxAttempts,
+            @NotNull @DefaultValue("1s") Duration retryBaseDelay,
+            @NotNull @DefaultValue("30s") Duration retryMaxDelay) {}
 }

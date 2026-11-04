@@ -55,6 +55,9 @@ public class WebhookController {
         if (!HANDLED_ACTIONS.contains(action) || pr.path("draft").asBoolean(false)) {
             return ResponseEntity.accepted().body("ignored action");
         }
+        if (isBotAuthor(pr)) {
+            return ResponseEntity.accepted().body("ignored bot author");
+        }
 
         String repo = payload.path("repository").path("full_name").asText();
         int number = pr.path("number").asInt();
@@ -69,5 +72,12 @@ public class WebhookController {
             return ResponseEntity.status(503).header("Retry-After", "60").body("review queue full");
         }
         return ResponseEntity.accepted().body("review queued");
+    }
+
+    /** Dependabot, Renovate and our own reviews are bot accounts; reviewing them is noise. */
+    private static boolean isBotAuthor(JsonNode pr) {
+        JsonNode user = pr.path("user");
+        return "Bot".equals(user.path("type").asText())
+                || user.path("login").asText().endsWith("[bot]");
     }
 }

@@ -18,6 +18,7 @@ import dev.prbot.config.BotProperties.Provider;
 import dev.prbot.review.ReviewService;
 import java.nio.charset.StandardCharsets;
 import java.util.HexFormat;
+import java.util.List;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import org.junit.jupiter.api.BeforeEach;
@@ -102,6 +103,28 @@ class WebhookControllerTest {
         mvc.perform(signed("pull_request", PR_OPENED.replace("\"draft\":false", "\"draft\":true")))
                 .andExpect(status().isAccepted());
         verify(reviews, never()).reviewAsync(anyString(), anyInt(), anyString());
+    }
+
+    @Test
+    void ignoresPullRequestsOpenedByBots() throws Exception {
+        for (String user :
+                List.of(
+                        "{\"login\":\"dependabot[bot]\",\"type\":\"Bot\"}",
+                        "{\"login\":\"renovate[bot]\"}")) {
+            String body = PR_OPENED.replace("\"draft\":false", "\"draft\":false,\"user\":" + user);
+            mvc.perform(signed("pull_request", body)).andExpect(status().isAccepted());
+        }
+        verify(reviews, never()).reviewAsync(anyString(), anyInt(), anyString());
+    }
+
+    @Test
+    void stillReviewsPullRequestsFromHumans() throws Exception {
+        String body =
+                PR_OPENED.replace(
+                        "\"draft\":false",
+                        "\"draft\":false,\"user\":{\"login\":\"sania089\",\"type\":\"User\"}");
+        mvc.perform(signed("pull_request", body)).andExpect(status().isAccepted());
+        verify(reviews).reviewAsync("acme/widgets", 7, "abc123");
     }
 
     @Test

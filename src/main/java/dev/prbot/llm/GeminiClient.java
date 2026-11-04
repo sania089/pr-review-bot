@@ -3,6 +3,7 @@ package dev.prbot.llm;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.prbot.config.BotProperties;
+import dev.prbot.http.Retrier;
 import dev.prbot.review.ReviewResult;
 import java.util.List;
 import java.util.Map;
@@ -19,10 +20,13 @@ public class GeminiClient implements LlmClient {
     private final RestClient http;
     private final String model;
     private final ObjectMapper mapper;
+    private final Retrier retrier;
 
-    public GeminiClient(BotProperties props, ObjectMapper mapper, RestClient.Builder builder) {
+    public GeminiClient(
+            BotProperties props, ObjectMapper mapper, RestClient.Builder builder, Retrier retrier) {
         this.model = props.llm().gemini().model();
         this.mapper = mapper;
+        this.retrier = retrier;
         this.http =
                 builder.baseUrl("https://generativelanguage.googleapis.com")
                         .defaultHeader("x-goog-api-key", props.llm().gemini().apiKey())
@@ -56,12 +60,14 @@ public class GeminiClient implements LlmClient {
                                         0.2));
 
         JsonNode response =
-                http.post()
-                        .uri("/v1beta/models/{model}:generateContent", model)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .body(request)
-                        .retrieve()
-                        .body(JsonNode.class);
+                retrier.call(
+                        () ->
+                                http.post()
+                                        .uri("/v1beta/models/{model}:generateContent", model)
+                                        .contentType(MediaType.APPLICATION_JSON)
+                                        .body(request)
+                                        .retrieve()
+                                        .body(JsonNode.class));
 
         StringBuilder text = new StringBuilder();
         for (JsonNode part : response.path("candidates").path(0).path("content").path("parts")) {
