@@ -1,0 +1,16 @@
+server:
+  port: 8080
+
+prbot:
+  github-token: ${GITHUB_TOKEN:}
+  webhook-secret: ${GITHUB_WEBHOOK_SECRET:}
+  anthropic-api-key: ${ANTHROPIC_API_KEY:}
+  model: claude-sonnet-5-5
+  max-diff-chars: 60000
+  max-comments: 15
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
