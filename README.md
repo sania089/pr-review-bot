@@ -1,33 +1,57 @@
 # PR Reviewer Bot
 
-A Spring Boot service that receives GitHub `pull_request` webhooks, sends the diff to Claude, and posts
+A Spring Boot service that receives GitHub `pull_request` webhooks, sends the diff to an LLM (Gemini, Groq or Claude), and posts
 the result back as a PR review with inline comments.
 
 ```
 GitHub ──webhook──▶ WebhookController ──▶ ReviewService (async)
                      (HMAC check)            │ 1. GitHubClient.fetchDiff
                                              │ 2. DiffAnnotator (add line numbers)
-                                             │ 3. ClaudeClient.review (forced tool call → JSON)
+                                             │ 3. LlmClient.review (JSON-schema output)
                                              │ 4. drop comments outside the diff
                                              ▼ 5. GitHubClient.postReview
 ```
 
 ## Tech stack
 - Java 21, Spring Boot 3.3 (Web, Actuator, Validation), Maven
-- `RestClient` for the GitHub REST API and the Anthropic Messages API
-- Structured output via a forced `submit_review` tool call (no free-text JSON parsing)
+- `RestClient` for the GitHub REST API and the LLM APIs (Gemini, Groq, Anthropic), chosen with `prbot.llm.provider`
+- Structured output via JSON schema (Gemini, Groq) or a forced tool call (Claude); no free-text JSON parsing
 - JUnit 5 tests; later: Testcontainers + WireMock, Docker, Postgres, Micrometer
 
 ## Run it
+Needs JDK 21 and Maven. Put secrets in environment variables, or in a git-ignored `.env` file in the
+project root (`KEY=value` per line, read automatically at startup):
 ```bash
-export GITHUB_TOKEN=ghp_...            # fine-grained PAT: Pull requests (rw), Contents (r)
-export GITHUB_WEBHOOK_SECRET=some-long-random-string
-export ANTHROPIC_API_KEY=sk-ant-...
+GITHUB_TOKEN=ghp_...            # fine-grained PAT: Pull requests (rw), Contents (r)
+GITHUB_WEBHOOK_SECRET=some-long-random-string
+GEMINI_API_KEY=...              # or GROQ_API_KEY / ANTHROPIC_API_KEY, see LLM_PROVIDER below
+```
+```bash
 mvn spring-boot:run
 ngrok http 8080                         # expose it for GitHub
 ```
+The app refuses to start if the GitHub token, the webhook secret, or the API key of the selected
+provider is missing.
+
 In your test repo: Settings → Webhooks → payload URL `https://<ngrok>/webhook/github`, content type
 `application/json`, the same secret, event "Pull requests".
+
+`mvn verify` runs the tests and checks formatting; `mvn spotless:apply` fixes formatting.
+
+## Configuration
+
+| Property | Env var | Default | Notes |
+|----------|---------|---------|-------|
+| `prbot.github-token` | `GITHUB_TOKEN` | – (required) | Replaced by GitHub App auth later |
+| `prbot.webhook-secret` | `GITHUB_WEBHOOK_SECRET` | – (required) | Webhook HMAC secret |
+| `prbot.llm.provider` | `LLM_PROVIDER` | `gemini` | `gemini`, `groq` or `claude` |
+| `prbot.llm.gemini.api-key` / `.model` | `GEMINI_API_KEY` | – / `gemini-3.5-flash-lite` | |
+| `prbot.llm.groq.api-key` / `.model` | `GROQ_API_KEY` | – / `openai/gpt-oss-120b` | Free tier caps at ~8k tokens/min, so only small diffs fit |
+| `prbot.llm.claude.api-key` / `.model` | `ANTHROPIC_API_KEY` | – / `claude-sonnet-5-5` | Only needed when `provider=claude` |
+| `prbot.max-diff-chars` | – | `60000` | Larger diffs are truncated |
+| `prbot.max-comments` | – | `15` | Cap on inline comments per review |
+| `prbot.executor.threads` | – | `2` | Concurrent reviews |
+| `prbot.executor.queue-capacity` | – | `20` | Waiting reviews; beyond this the webhook gets 503 and the review is skipped |
 
 ## Milestones
 

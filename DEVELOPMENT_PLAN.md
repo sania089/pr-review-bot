@@ -1,0 +1,193 @@
+# PR Review Bot – Development Plan
+
+Single source of truth for building and launching the bot. Free tiers and open-source tools only.
+Day 1 = Mon 2 Nov 2026, Day 11 = Thu 12 Nov 2026 if worked daily. Dates are targets, the order is what matters.
+
+## How to use this file
+
+**Picking up work**
+1. Find the first unchecked task in the lowest-numbered day (`- [ ]`). Finish the current day before starting the next unless blocked.
+2. Create a branch: `feature/day-N-short-name` (or `fix/...`). One branch per day or per task group.
+3. Implement the task, with tests where the task says so.
+4. Run the checks below, then commit with a message like `day-N: short description`.
+5. Tick the box (`- [x]`), add a short note after it if something differs from the plan, and commit the file with the code.
+
+**Definition of done for every task**
+- `mvn verify` passes (and `npm run lint && npm test` once `frontend/` exists).
+- No secrets, tokens or code from reviewed repos in logs or commits.
+- New config is in `application.yml` with a safe default and documented in the README config table.
+- New behaviour has at least one test; error and edge paths are handled, not just the happy path.
+- A task that grew or changed is updated here instead of silently diverging.
+
+**Rules of thumb**
+- Keep it simple. Add an interface only when there are two real implementations (`LlmClient`, `TokenProvider`).
+- Keep classes small and single-purpose: controllers parse and respond, services orchestrate, clients talk to one external API, repositories talk to the database.
+- Constructor injection, immutable records for data, no static state except pure helpers.
+- Anything not needed for launch goes to the backlog at the bottom, not into the current day.
+
+**Status key:** `[ ]` todo, `[x]` done, `[~]` in progress (use only for the task you are on), `[!]` blocked (add the reason after it).
+
+## Architecture at a glance
+
+```
+GitHub ──webhook──▶ WebhookController ──▶ ReviewService (bounded executor)
+                     (HMAC check)            │ 1. dedupe in DB (repo, PR, head SHA)
+                                             │ 2. GitHubClient.fetchDiff (TokenProvider)
+                                             │ 3. filter files, truncate at file boundary, DiffAnnotator
+                                             │ 4. LlmClient.review (free-tier provider, optional Claude)
+                                             │ 5. drop comments outside the diff, apply .prbot.yml
+                                             ▼ 6. GitHubClient.postReview, update review row
+
+React (Vite, served from Spring static/) ──▶ /api/login, /api/reviews, /api/stats ──▶ Postgres (Neon)
+```
+
+Package layout (`dev.prbot`): `webhook`, `review`, `github`, `llm`, `config`, `persistence`, `api`, plus `frontend/` at the repo root.
+
+## Free stack
+
+| Need | Choice |
+|------|--------|
+| LLM | Free-tier provider (Gemini free tier or Groq; decide on Day 1), `ClaudeClient` optional |
+| Database | Neon free Postgres |
+| Hosting | Render free web service (Docker) |
+| Keep-alive and alerts | UptimeRobot free, 5-minute check on `/actuator/health` |
+| CI | GitHub Actions (public repo) |
+| Frontend | Vite, React, TypeScript, Tailwind, shadcn/ui, React Router, TanStack Query |
+| Tests | JUnit 5, WireMock, Testcontainers (repository only), Vitest, React Testing Library |
+
+Free-tier limits change. Confirm them on Day 1 and record the numbers in the notes section below.
+
+## Baseline (already done)
+
+- [x] Spring Boot skeleton, `@EnableAsync`, `BotProperties`
+- [x] Webhook endpoint with HMAC signature check, `ping` handling, action and draft filtering
+- [x] `GitHubClient`, `ClaudeClient`, `DiffAnnotator`, `ReviewService` end-to-end flow (PAT auth, no retries)
+- [x] Unit tests for `SignatureVerifier` and `DiffAnnotator`
+
+---
+
+## Day 1 – Foundation and quality gates
+*Done when: CI is green, the app will not start without secrets, and a free LLM provider is chosen.*
+
+- [x] **CI pipeline.** GitHub Actions running `mvn verify` on every push and PR; add Spotless for formatting. _Note: GitHub Actions runs `mvn verify`, which includes the Spotless check (google-java-format, AOSP style, 4-space indent). Also untracked the committed `target/` folder and added `.gitignore`._
+- [x] **Confirm free tiers.** Check current limits for the LLM provider, Neon, Render and UptimeRobot. Run one real diff through the candidate LLM and pick the default provider. _Note: LLM trial done, provider picked and Gemini limits recorded (see notes log). Neon, Render and UptimeRobot limits deferred to Day 3 / Day 10 when they are set up._
+- [x] **`LlmClient` interface.** Move `ClaudeClient` behind it, add the free-tier implementation with JSON-schema structured output, select with `prbot.llm.provider`. _Note: Gemini, Groq and Claude implementations; Claude is only created when `provider=claude`, so no Anthropic key is needed otherwise._
+- [x] **Fail-fast config and errors.** `@Validated` `BotProperties` with `@NotBlank` secrets; a `@RestControllerAdvice` for the webhook; no secrets in logs; a request ID in the log context. _Note: also fixed a skeleton bug where `owner/repo` was sent as `owner%2Frepo` and GitHub would 404._
+- [x] **Bounded executor.** Replace the default `@Async` executor with a small `ThreadPoolTaskExecutor` and bounded queue; rejected work is logged and recorded as SKIPPED. _Note: the SKIPPED row is a log line plus HTTP 503 until the `reviews` table exists on Day 3 (TODO in `WebhookController`)._
+
+## Day 2 – Review pipeline robustness
+*Done when: a 429 or 5xx is retried, and huge or noisy PRs produce a sensible review.*
+
+- [ ] **Retries with backoff.** One small retry helper used by `GitHubClient` and the LLM client: retry on 429/5xx and network errors, honour `Retry-After`, 3 attempts, explicit connect and read timeouts.
+- [ ] **File filtering.** Parse the diff per file and drop lockfiles, minified or generated files, binaries and vendored paths with a list of predicates.
+- [ ] **Smarter truncation.** Cut at file boundaries, not at a character offset mid-hunk (the current `substring` can split a line). Review the files that fit and say which were skipped.
+- [ ] **Skip rules.** Ignore bot-authored PRs, drafts (already done) and PRs with an empty filtered diff.
+- [ ] **Tests.** Unit tests for the filters, truncation and retry helper (no network).
+
+## Day 3 – Persistence and idempotency
+*Done when: the same PR + SHA delivered twice is reviewed once, and every review is stored.*
+
+- [ ] **Neon Postgres + Flyway.** Free Neon database, `JdbcClient` (no ORM for one table), Flyway migration for `reviews`: repo, PR, head SHA, status, provider, model, tokens in/out, latency, error, timestamps. Neon scales to zero: small Hikari pool, connection timeout and validation.
+- [ ] **Dedupe by unique key.** `UNIQUE (repo, pr_number, head_sha)`; insert as QUEUED before dispatch and skip on conflict.
+- [ ] **Status lifecycle.** QUEUED → POSTED / FAILED / SKIPPED, written by `ReviewService`; failures store a short error.
+- [ ] **Usage tracking.** Store token counts and latency per review (feeds the quota guard on Day 5).
+- [ ] **Repository test.** One Testcontainers test for insert, conflict and status updates. `docker compose` Postgres for local dev.
+
+## Day 4 – GitHub App authentication
+*Done when: the bot reviews PRs on two different repos where the App is installed, with no PAT.*
+
+- [ ] **Create the GitHub App.** Permissions: Pull requests (rw), Contents (r), Metadata (r); subscribe to Pull request events; set the webhook secret.
+- [ ] **`TokenProvider` interface.** `PatTokenProvider` (local dev) and `GitHubAppTokenProvider` (RS256 JWT → installation token).
+- [ ] **Token cache.** Cache installation tokens per installation until about 5 minutes before expiry; read `installation.id` from the webhook payload.
+- [ ] **Wire `GitHubClient`.** Take the token per call from the provider.
+- [ ] **Tests.** Unit-test the JWT claims and cache expiry; manual check on two repos.
+
+## Day 5 – Review quality and per-repo config
+*Done when: reviews on about 10 real PRs are useful with few false alarms, and repos can tune the bot.*
+
+- [ ] **Prompt pass.** Versioned prompt resource file; bugs, security and correctness only, with severity, no style nits; store the prompt version per review. Review large PRs in per-file batches (free models have smaller context windows).
+- [ ] **`.prbot.yml` support.** Fetch from the PR's base branch; support `ignore` paths and `strictness` (low / normal / high maps to comment cap and minimum severity). Invalid file falls back to defaults and is mentioned in the summary.
+- [ ] **Spot-check set.** Run on about 10 PRs (some with seeded bugs), note misses and false positives, adjust the prompt once or twice. A formal eval harness is post-launch.
+- [ ] **Quota guard.** Pace LLM calls under the provider's requests-per-minute limit and stop at a configurable daily request cap; when hit, post nothing and record SKIPPED with the reason.
+
+## Day 6 – Dashboard API and login
+*Done when: the API returns real review history and stats and is not publicly readable.*
+
+- [ ] **Read endpoints.** `GET /api/reviews` (paged, filter by repo/status), `GET /api/reviews/{id}`, `GET /api/stats` (reviews, comments posted, failure rate, p50/p95 latency, tokens over 7/30 days) via SQL aggregates.
+- [ ] **Login for the React app.** Spring Security with one admin credential from the environment: `POST /api/login` sets an HttpOnly, SameSite=Strict session cookie; `/api/**` requires it; webhook, health and static files stay public (webhook exempt from CSRF, it has its own HMAC).
+- [ ] **Metrics without a metrics stack.** Micrometer counters for reviews by status, LLM latency and tokens, surfaced via `/api/stats` and `health`.
+- [ ] **API tests.** `@WebMvcTest` for the endpoints, login flow and 401 behaviour.
+
+## Day 7 – React app: scaffold, login and dashboard
+*Done when: you can log in to the React app and see real review history with stats from your local backend.*
+
+- [ ] **Scaffold.** Vite + React + TypeScript in `frontend/`, Tailwind with shadcn/ui, React Router, TanStack Query, ESLint. Dev proxy sends `/api` to Spring Boot.
+- [ ] **Typed API client.** One module wraps `fetch`, handles 401 by redirecting to login, defines response types in one place.
+- [ ] **Login page and route guard.** Form posting to `/api/login`; private routes check the session via a TanStack Query call.
+- [ ] **Dashboard page.** Stat tiles, reviews table with status badges, repo and status filters, pagination, link to each PR, loading, empty and error states.
+- [ ] **Review detail.** Side panel or page with summary, posted comments, tokens, latency and any error reason.
+
+## Day 8 – Landing page, polish and frontend tests
+*Done when: a stranger understands the product from the landing page and the whole app looks finished.*
+
+- [ ] **Landing page.** What the bot does, a real review screenshot or GIF, three-step install (install the App, open a PR, get a review), install button.
+- [ ] **Docs page.** In-app setup and `.prbot.yml` reference.
+- [ ] **Visual polish.** One set of Tailwind design tokens, light and dark theme, responsive to phone width, keyboard focus states, readable contrast, page titles and favicon.
+- [ ] **Frontend tests and CI.** Vitest + React Testing Library for dashboard states and the login guard; add `tsc`, ESLint and tests to the CI workflow.
+
+## Day 9 – End-to-end tests and security pass
+*Done when: the webhook-to-posted-review flow is tested offline and the security checklist is clear.*
+
+- [ ] **WireMock E2E.** `@SpringBootTest` posts a signed webhook, WireMock plays GitHub and the LLM; cover happy path, duplicate delivery, LLM 429 then success, LLM failure (FAILED), quota exhausted (SKIPPED), diff over the limit, comment outside the diff.
+- [ ] **Security checklist.** Constant-time signature compare (verify), reject oversized webhook bodies, no secrets or code in logs, least-privilege App permissions, Dependabot and GitHub code scanning, `npm audit`, no secrets in the frontend bundle, Content-Security-Policy header.
+- [ ] **Prompt-injection guard.** The diff is untrusted data: the prompt says to ignore instructions inside code, and the bot can only post a review.
+- [ ] **Burst test.** 20 webhooks in a row locally; queue and pacing keep requests under the free-tier limit.
+
+## Day 10 – Containerise and deploy on free tiers
+*Done when: the production instance reviews a real PR through the real GitHub App.*
+
+- [ ] **Dockerfile.** Three stages: Node builds the React app, Maven builds the JAR with the build output in `static/`, slim JRE image runs as non-root. `docker-compose.yml` for local app + Postgres.
+- [ ] **Deploy.** Render free web service from the Dockerfile, connected to Neon. Secrets in Render (App private key, webhook secret, LLM API key, admin password); Flyway runs on startup.
+- [ ] **Point the GitHub App** at the Render webhook URL; install on a test repo and one real repo you own.
+- [ ] **Keep awake and watched.** UptimeRobot checks `/actuator/health` every 5 minutes (prevents sleep, emails on downtime). Render auto-deploy from `main`, only after CI passes.
+- [ ] **Smoke test.** PR with a seeded bug, confirm the review, check the dashboard row, redeliver the webhook and confirm no duplicate. Test once after idle for cold-start behaviour.
+
+## Day 11 – Docs and launch
+*Done when: the project is public, documented and announced.*
+
+- [ ] **README rewrite.** Architecture diagram, 5-minute setup, configuration table, `.prbot.yml` reference, data-handling note (diffs go to the configured LLM; free tiers of some providers may use prompts to improve products, so recommend public repos only).
+- [ ] **Demo assets.** Public demo repo with a buggy PR the bot has reviewed; short GIF for README and landing page.
+- [ ] **Repo hygiene.** LICENSE, CONTRIBUTING (short), issue templates, SECURITY.md, tagged `v1.0.0`.
+- [ ] **Final regression.** Backend and frontend tests, then the production smoke test again; fix only launch blockers.
+- [ ] **Announce.** Post where your audience is (LinkedIn, X, Reddit, Show HN); watch dashboard and logs for 24 hours.
+
+---
+
+## Launch gate (all must be ticked before announcing)
+
+- [ ] A real PR on a real repo gets a correct review through the production GitHub App.
+- [ ] Redelivered webhooks never produce a duplicate review.
+- [ ] LLM or GitHub outages and exhausted quota produce a FAILED or SKIPPED row, not a crash or a silent miss.
+- [ ] The React dashboard is behind login and shows real data; the landing page has a working install link.
+- [ ] CI is green, secrets are only in the environment, and the UptimeRobot check is passing.
+- [ ] README setup works from a clean machine in under 10 minutes, and the data-handling note is published.
+
+## Post-launch backlog (do not start before launch)
+
+1. Fetch full contents of changed files for better context (largest quality gain).
+2. Eval harness with seeded-bug PRs; track recall and false positives per prompt version.
+3. GitHub OAuth login and per-installation dashboards.
+4. Re-review on request (`/review` comment) and a resolve-on-fix flow.
+5. Move to a paid or higher-quota LLM tier (Claude already supported through `LlmClient`).
+6. Tracing, richer metrics and a Postgres-backed queue if one instance is no longer enough.
+
+## Notes and decisions log
+
+Add dated one-liners here when something differs from the plan (chosen LLM provider and its limits, Render or Neon quirks, deferred tasks).
+
+- 2026-11-02: Plan created. Free-tier limits not yet verified (Day 1 task).
+- 2026-11-03: Default LLM = Gemini `gemini-3.5-flash-lite` (reliable, ~2s, found all 4 seeded bugs; weaker on real PR #1). Larger Gemini models (`gemini-3.5` to `3.8-flash`) were better on quality but returned frequent 503 "high demand", 40-140s latencies and one connection reset, so they are opt-in via `prbot.llm.gemini.model`. `gemini-2.5-flash` is closed to new keys.
+- 2026-11-03: Groq free tier: TPM 8000 (gpt-oss-120b/20b), ITPM 7000 (qwen3.8-27b). A ~27 KB diff (~10k tokens) is rejected with 413, so Groq only works with per-file batching (Day 5). `gpt-oss-20b` failed JSON-schema output. `gpt-oss-120b` and `qwen3.8-27b` were accurate on a small diff.
+- 2026-11-03: Gemini free-tier request limits are not published in the docs; read them from the AI Studio rate-limit page for the project and record them here before Day 5 (quota guard). Neon, Render and UptimeRobot limits not yet checked (needed Day 3 and Day 10).
+- 2026-11-03: Day 2 must add explicit read timeouts: one Gemini call hung 155s before the connection reset, and 503s were frequent, so retries matter for the default provider.
+- 2026-11-03: AI Studio rate limits for `gemini-3.5-flash-lite` (free tier): 15 RPM, 250K TPM, 500 RPD (the 3.6/3.8 Flash models: 5 RPM, 20 RPD, so unusable for volume). Day 5 quota guard defaults: pace at ~12 RPM (headroom under 15) and daily cap ~450 (headroom under 500); both configurable. Limits are per project and the RPD resets at midnight Pacific.
