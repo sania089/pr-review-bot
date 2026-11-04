@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.jsonPath;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -12,9 +13,12 @@ import dev.prbot.TestProps;
 import dev.prbot.config.BotProperties.Provider;
 import dev.prbot.review.ReviewResult;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.test.web.client.ExpectedCount;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientException;
 
 /** Request shape and response parsing for each provider, with the HTTP layer mocked. */
 class LlmClientsTest {
@@ -43,7 +47,9 @@ class LlmClientsTest {
     void geminiSendsSchemaAndParsesJsonText() throws Exception {
         RestClient.Builder builder = RestClient.builder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
-        GeminiClient client = new GeminiClient(TestProps.with(Provider.GEMINI), MAPPER, builder);
+        GeminiClient client =
+                new GeminiClient(
+                        TestProps.with(Provider.GEMINI), MAPPER, builder, TestProps.retrier());
 
         String body =
                 MAPPER.writeValueAsString(
@@ -84,7 +90,9 @@ class LlmClientsTest {
     void geminiFailsClearlyWhenNothingIsReturned() {
         RestClient.Builder builder = RestClient.builder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
-        GeminiClient client = new GeminiClient(TestProps.with(Provider.GEMINI), MAPPER, builder);
+        GeminiClient client =
+                new GeminiClient(
+                        TestProps.with(Provider.GEMINI), MAPPER, builder, TestProps.retrier());
         server.expect(
                         requestTo(
                                 "https://generativelanguage.googleapis.com/v1beta/models/gemini-test:generateContent"))
@@ -97,10 +105,50 @@ class LlmClientsTest {
     }
 
     @Test
+    void groqRetriesAfter429ThenParses() throws Exception {
+        RestClient.Builder builder = RestClient.builder();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        GroqClient client =
+                new GroqClient(TestProps.with(Provider.GROQ), MAPPER, builder, TestProps.retrier());
+        String url = "https://api.groq.com/openai/v1/chat/completions";
+        String ok =
+                MAPPER.writeValueAsString(
+                        java.util.Map.of(
+                                "choices",
+                                java.util.List.of(
+                                        java.util.Map.of(
+                                                "message",
+                                                java.util.Map.of("content", REVIEW_JSON)))));
+        server.expect(ExpectedCount.once(), requestTo(url))
+                .andRespond(withStatus(HttpStatus.TOO_MANY_REQUESTS));
+        server.expect(ExpectedCount.once(), requestTo(url))
+                .andRespond(withSuccess(ok, MediaType.APPLICATION_JSON));
+
+        assertParsed(client.review("x"));
+        server.verify();
+    }
+
+    @Test
+    void groqGivesUpAfterThreeFailedAttempts() {
+        RestClient.Builder builder = RestClient.builder();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        GroqClient client =
+                new GroqClient(TestProps.with(Provider.GROQ), MAPPER, builder, TestProps.retrier());
+        server.expect(
+                        ExpectedCount.times(3),
+                        requestTo("https://api.groq.com/openai/v1/chat/completions"))
+                .andRespond(withStatus(HttpStatus.SERVICE_UNAVAILABLE));
+
+        assertThatThrownBy(() -> client.review("x")).isInstanceOf(RestClientException.class);
+        server.verify();
+    }
+
+    @Test
     void groqSendsStrictSchemaAndParsesMessageContent() throws Exception {
         RestClient.Builder builder = RestClient.builder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
-        GroqClient client = new GroqClient(TestProps.with(Provider.GROQ), MAPPER, builder);
+        GroqClient client =
+                new GroqClient(TestProps.with(Provider.GROQ), MAPPER, builder, TestProps.retrier());
 
         String body =
                 MAPPER.writeValueAsString(
@@ -128,7 +176,8 @@ class LlmClientsTest {
     void groqRejectsMalformedJsonFromTheModel() throws Exception {
         RestClient.Builder builder = RestClient.builder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
-        GroqClient client = new GroqClient(TestProps.with(Provider.GROQ), MAPPER, builder);
+        GroqClient client =
+                new GroqClient(TestProps.with(Provider.GROQ), MAPPER, builder, TestProps.retrier());
         server.expect(requestTo("https://api.groq.com/openai/v1/chat/completions"))
                 .andRespond(
                         withSuccess(
@@ -142,7 +191,9 @@ class LlmClientsTest {
     void claudeForcesToolCallAndParsesToolInput() throws Exception {
         RestClient.Builder builder = RestClient.builder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
-        ClaudeClient client = new ClaudeClient(TestProps.with(Provider.CLAUDE), MAPPER, builder);
+        ClaudeClient client =
+                new ClaudeClient(
+                        TestProps.with(Provider.CLAUDE), MAPPER, builder, TestProps.retrier());
 
         String body = "{\"content\":[{\"type\":\"tool_use\",\"input\":" + REVIEW_JSON + "}]}";
         server.expect(requestTo("https://api.anthropic.com/v1/messages"))

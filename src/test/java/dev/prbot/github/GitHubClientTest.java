@@ -1,10 +1,13 @@
 package dev.prbot.github;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.jsonPath;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withServerError;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
 import dev.prbot.TestProps;
@@ -14,8 +17,11 @@ import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.test.web.client.ExpectedCount;
 import org.springframework.test.web.client.MockRestServiceServer;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClient;
 
 class GitHubClientTest {
@@ -27,7 +33,39 @@ class GitHubClientTest {
     void setUp() {
         RestClient.Builder builder = RestClient.builder();
         server = MockRestServiceServer.bindTo(builder).build();
-        client = new GitHubClient(TestProps.with(Provider.GEMINI), builder);
+        client = new GitHubClient(TestProps.with(Provider.GEMINI), builder, TestProps.retrier());
+    }
+
+    @Test
+    void fetchDiffRetriesOn503ThenSucceeds() {
+        String url = "https://api.github.com/repos/acme/widgets/pulls/7";
+        server.expect(ExpectedCount.once(), requestTo(url)).andRespond(withServerError());
+        server.expect(ExpectedCount.once(), requestTo(url))
+                .andRespond(withSuccess("diff --git a/x b/x", MediaType.TEXT_PLAIN));
+
+        assertThat(client.fetchDiff("acme/widgets", 7)).startsWith("diff --git");
+        server.verify();
+    }
+
+    @Test
+    void fetchDiffDoesNotRetryOn404() {
+        server.expect(ExpectedCount.once(), requestTo(org.hamcrest.Matchers.any(String.class)))
+                .andRespond(withStatus(HttpStatus.NOT_FOUND));
+
+        assertThatThrownBy(() -> client.fetchDiff("acme/widgets", 7))
+                .isInstanceOf(HttpClientErrorException.NotFound.class);
+        server.verify();
+    }
+
+    @Test
+    void postReviewRetriesOn429() {
+        String url = "https://api.github.com/repos/acme/widgets/pulls/7/reviews";
+        server.expect(ExpectedCount.once(), requestTo(url))
+                .andRespond(withStatus(HttpStatus.TOO_MANY_REQUESTS));
+        server.expect(ExpectedCount.once(), requestTo(url)).andRespond(withSuccess());
+
+        client.postReview("acme/widgets", 7, "abc123", "summary", List.of());
+        server.verify();
     }
 
     /** GitHub answers 404 for owner%2Frepo, so the slash in "owner/repo" must stay a slash. */

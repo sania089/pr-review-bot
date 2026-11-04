@@ -3,6 +3,7 @@ package dev.prbot.llm;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.prbot.config.BotProperties;
+import dev.prbot.http.Retrier;
 import dev.prbot.review.ReviewResult;
 import java.util.List;
 import java.util.Map;
@@ -21,10 +22,13 @@ public class GroqClient implements LlmClient {
     private final RestClient http;
     private final String model;
     private final ObjectMapper mapper;
+    private final Retrier retrier;
 
-    public GroqClient(BotProperties props, ObjectMapper mapper, RestClient.Builder builder) {
+    public GroqClient(
+            BotProperties props, ObjectMapper mapper, RestClient.Builder builder, Retrier retrier) {
         this.model = props.llm().groq().model();
         this.mapper = mapper;
+        this.retrier = retrier;
         this.http =
                 builder.baseUrl("https://api.groq.com/openai/v1")
                         .defaultHeader("Authorization", "Bearer " + props.llm().groq().apiKey())
@@ -61,12 +65,14 @@ public class GroqClient implements LlmClient {
                                         ReviewPrompt.SCHEMA)));
 
         JsonNode response =
-                http.post()
-                        .uri("/chat/completions")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .body(request)
-                        .retrieve()
-                        .body(JsonNode.class);
+                retrier.call(
+                        () ->
+                                http.post()
+                                        .uri("/chat/completions")
+                                        .contentType(MediaType.APPLICATION_JSON)
+                                        .body(request)
+                                        .retrieve()
+                                        .body(JsonNode.class));
 
         JsonNode choice = response.path("choices").path(0);
         String content = choice.path("message").path("content").asText("");

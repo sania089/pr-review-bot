@@ -48,7 +48,12 @@ In your test repo: Settings → Webhooks → payload URL `https://<ngrok>/webhoo
 | `prbot.llm.gemini.api-key` / `.model` | `GEMINI_API_KEY` | – / `gemini-3.5-flash-lite` | |
 | `prbot.llm.groq.api-key` / `.model` | `GROQ_API_KEY` | – / `openai/gpt-oss-120b` | Free tier caps at ~8k tokens/min, so only small diffs fit |
 | `prbot.llm.claude.api-key` / `.model` | `ANTHROPIC_API_KEY` | – / `claude-sonnet-5-5` | Only needed when `provider=claude` |
-| `prbot.max-diff-chars` | – | `60000` | Larger diffs are truncated |
+| `prbot.max-diff-chars` | – | `60000` | Size budget for the diff sent to the model. Whole files only: files that do not fit are skipped and named in the review summary |
+| `prbot.http.connect-timeout` | – | `10s` | Connect timeout for GitHub and LLM calls |
+| `prbot.http.read-timeout` | – | `60s` | Read timeout for GitHub and LLM calls |
+| `prbot.http.max-attempts` | – | `3` | Tries per call on HTTP 429, 5xx or network errors |
+| `prbot.http.retry-base-delay` | – | `1s` | First backoff, doubled each retry (a `Retry-After` header wins) |
+| `prbot.http.retry-max-delay` | – | `30s` | Upper bound for any single wait |
 | `prbot.max-comments` | – | `15` | Cap on inline comments per review |
 | `prbot.executor.threads` | – | `2` | Concurrent reviews |
 | `prbot.executor.queue-capacity` | – | `20` | Waiting reviews; beyond this the webhook gets 503 and the review is skipped |

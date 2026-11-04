@@ -6,6 +6,7 @@ import dev.prbot.github.GitHubClient;
 import dev.prbot.github.GitHubClient.InlineComment;
 import dev.prbot.llm.LlmClient;
 import java.util.List;
+import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Async;
@@ -36,13 +37,34 @@ public class ReviewService {
     }
 
     void review(String repo, int number, String headSha) {
-        String diff = github.fetchDiff(repo, number);
-        boolean truncated = diff.length() > props.maxDiffChars();
-        if (truncated) {
-            diff = diff.substring(0, props.maxDiffChars());
+        List<FileDiff> all = FileDiff.split(github.fetchDiff(repo, number));
+        List<FileDiff> relevant = DiffFilter.relevant(all);
+        if (relevant.isEmpty()) {
+            // TODO(day-3): record this as a SKIPPED review row.
+            log.info(
+                    "{}#{}: nothing to review, all {} changed files are filtered out",
+                    repo,
+                    number,
+                    all.size());
+            return;
         }
 
-        DiffAnnotator.Annotated annotated = DiffAnnotator.annotate(diff);
+        DiffTruncator.Result fitted = DiffTruncator.fit(relevant, props.maxDiffChars());
+        if (fitted.kept().isEmpty()) {
+            // TODO(day-3): record this as a SKIPPED review row.
+            log.warn("{}#{}: every changed file is larger than the diff size limit", repo, number);
+            return;
+        }
+        log.info(
+                "{}#{}: reviewing {} of {} files ({} filtered out, {} too large)",
+                repo,
+                number,
+                fitted.kept().size(),
+                all.size(),
+                all.size() - relevant.size(),
+                fitted.skippedPaths().size());
+
+        DiffAnnotator.Annotated annotated = DiffAnnotator.annotate(fitted.joinedText());
         ReviewResult result = llm.review(annotated.text());
 
         List<InlineComment> comments =
@@ -66,12 +88,28 @@ public class ReviewService {
                     dropped);
         }
 
-        String summary =
-                result.summary()
-                        + (truncated
-                                ? "\n\n_Note: the diff was truncated, so part of this PR was not reviewed._"
-                                : "");
+        String summary = result.summary() + skippedNote(fitted.skippedPaths());
         github.postReview(repo, number, headSha, summary, comments);
         log.info("Posted review on {}#{} with {} inline comments", repo, number, comments.size());
+    }
+
+    private static final int MAX_LISTED_FILES = 10;
+
+    static String skippedNote(List<String> skipped) {
+        if (skipped.isEmpty()) {
+            return "";
+        }
+        String listed =
+                skipped.stream()
+                        .limit(MAX_LISTED_FILES)
+                        .map(p -> "`" + p + "`")
+                        .collect(Collectors.joining(", "));
+        int more = skipped.size() - MAX_LISTED_FILES;
+        return "\n\n_Note: "
+                + skipped.size()
+                + " file(s) were not reviewed because the diff is over the size limit: "
+                + listed
+                + (more > 0 ? " and " + more + " more" : "")
+                + "._";
     }
 }
