@@ -1,0 +1,86 @@
+package dev.prbot.config;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+import java.util.ArrayList;
+import java.util.List;
+import org.junit.jupiter.api.Test;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.boot.test.context.runner.ApplicationContextRunner;
+import org.springframework.context.annotation.Configuration;
+
+class BotPropertiesTest {
+
+    @Configuration
+    @EnableConfigurationProperties(BotProperties.class)
+    static class Config {}
+
+    private final ApplicationContextRunner runner =
+            new ApplicationContextRunner().withUserConfiguration(Config.class);
+
+    private static String[] props(String... overrides) {
+        List<String> all =
+                new ArrayList<>(
+                        List.of(
+                                "prbot.github-token=t",
+                                "prbot.webhook-secret=s",
+                                "prbot.max-diff-chars=1000",
+                                "prbot.max-comments=5",
+                                "prbot.llm.provider=gemini",
+                                "prbot.llm.gemini.api-key=gk",
+                                "prbot.llm.gemini.model=m",
+                                "prbot.llm.groq.api-key=",
+                                "prbot.llm.groq.model=m",
+                                "prbot.llm.claude.api-key=",
+                                "prbot.llm.claude.model=m",
+                                "prbot.executor.threads=2",
+                                "prbot.executor.queue-capacity=5"));
+        all.addAll(List.of(overrides)); // later entries win
+        return all.toArray(String[]::new);
+    }
+
+    @Test
+    void startsWithoutAnthropicKeyWhenAnotherProviderIsSelected() {
+        runner.withPropertyValues(props()).run(ctx -> assertThat(ctx).hasNotFailed());
+    }
+
+    @Test
+    void failsWithoutWebhookSecret() {
+        runner.withPropertyValues(props("prbot.webhook-secret="))
+                .run(ctx -> assertThat(ctx).hasFailed());
+    }
+
+    @Test
+    void failsWithoutGithubToken() {
+        runner.withPropertyValues(props("prbot.github-token="))
+                .run(ctx -> assertThat(ctx).hasFailed());
+    }
+
+    @Test
+    void failsWhenSelectedProviderHasNoKey() {
+        runner.withPropertyValues(props("prbot.llm.provider=groq"))
+                .run(
+                        ctx -> {
+                            assertThat(ctx).hasFailed();
+                            assertThat(ctx.getStartupFailure())
+                                    .hasStackTraceContaining(
+                                            "API key of the selected prbot.llm.provider");
+                        });
+    }
+
+    @Test
+    void claudeIsValidOnceItsKeyIsSet() {
+        runner.withPropertyValues(props("prbot.llm.provider=claude", "prbot.llm.claude.api-key=ck"))
+                .run(ctx -> assertThat(ctx).hasNotFailed());
+    }
+
+    @Test
+    void failureMessageDoesNotContainSecrets() {
+        runner.withPropertyValues(
+                        props("prbot.webhook-secret=", "prbot.github-token=super-secret-token"))
+                .run(
+                        ctx ->
+                                assertThat(ctx.getStartupFailure().toString())
+                                        .doesNotContain("super-secret-token"));
+    }
+}

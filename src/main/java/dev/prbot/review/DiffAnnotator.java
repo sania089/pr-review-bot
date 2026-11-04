@@ -9,12 +9,13 @@ import java.util.regex.Pattern;
 
 /**
  * Prefixes every added/context line of a unified diff with its line number in the new file, and
- * records which lines GitHub will accept inline comments on. GitHub rejects the whole review with
- * a 422 if a single comment points outside the diff, so the model's output is checked against this.
+ * records which lines GitHub will accept inline comments on. GitHub rejects the whole review with a
+ * 422 if a single comment points outside the diff, so the model's output is checked against this.
  */
 public final class DiffAnnotator {
 
-    private static final Pattern HUNK = Pattern.compile("^@@ -\\d+(?:,\\d+)? \\+(\\d+)(?:,\\d+)? @@.*");
+    private static final Pattern HUNK =
+            Pattern.compile("^@@ -\\d+(?:,\\d+)? \\+(\\d+)(?:,\\d+)? @@.*");
 
     public record Annotated(String text, Map<String, Set<Integer>> commentableLines) {
         public boolean canComment(String path, int line) {
@@ -22,8 +23,7 @@ public final class DiffAnnotator {
         }
     }
 
-    private DiffAnnotator() {
-    }
+    private DiffAnnotator() {}
 
     public static Annotated annotate(String diff) {
         StringBuilder out = new StringBuilder();

@@ -7,7 +7,8 @@ import org.junit.jupiter.api.Test;
 
 class DiffAnnotatorTest {
 
-    private static final String DIFF = """
+    private static final String DIFF =
+            """
             diff --git a/src/Foo.java b/src/Foo.java
             index 111..222 100644
             --- a/src/Foo.java
