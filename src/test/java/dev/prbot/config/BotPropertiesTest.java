@@ -45,6 +45,19 @@ class BotPropertiesTest {
     }
 
     @Test
+    void httpSettingsHaveSafeDefaultsAndCanBeOverridden() {
+        runner.withPropertyValues(props("prbot.http.max-attempts=5"))
+                .run(
+                        ctx -> {
+                            BotProperties.Http http = ctx.getBean(BotProperties.class).http();
+                            assertThat(http.maxAttempts()).isEqualTo(5);
+                            assertThat(http.connectTimeout()).hasSeconds(10);
+                            assertThat(http.readTimeout()).hasSeconds(60);
+                            assertThat(http.retryMaxDelay()).hasSeconds(30);
+                        });
+    }
+
+    @Test
     void failsWithoutWebhookSecret() {
         runner.withPropertyValues(props("prbot.webhook-secret="))
                 .run(ctx -> assertThat(ctx).hasFailed());

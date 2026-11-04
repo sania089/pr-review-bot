@@ -3,6 +3,7 @@ package dev.prbot.llm;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.prbot.config.BotProperties;
+import dev.prbot.http.Retrier;
 import dev.prbot.review.ReviewResult;
 import java.util.List;
 import java.util.Map;
@@ -29,10 +30,13 @@ public class ClaudeClient implements LlmClient {
     private final RestClient http;
     private final String model;
     private final ObjectMapper mapper;
+    private final Retrier retrier;
 
-    public ClaudeClient(BotProperties props, ObjectMapper mapper, RestClient.Builder builder) {
+    public ClaudeClient(
+            BotProperties props, ObjectMapper mapper, RestClient.Builder builder, Retrier retrier) {
         this.model = props.llm().claude().model();
         this.mapper = mapper;
+        this.retrier = retrier;
         this.http =
                 builder.baseUrl("https://api.anthropic.com")
                         .defaultHeader("x-api-key", props.llm().claude().apiKey())
@@ -63,12 +67,14 @@ public class ClaudeClient implements LlmClient {
                                         ReviewPrompt.userMessage(annotatedDiff))));
 
         JsonNode response =
-                http.post()
-                        .uri("/v1/messages")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .body(request)
-                        .retrieve()
-                        .body(JsonNode.class);
+                retrier.call(
+                        () ->
+                                http.post()
+                                        .uri("/v1/messages")
+                                        .contentType(MediaType.APPLICATION_JSON)
+                                        .body(request)
+                                        .retrieve()
+                                        .body(JsonNode.class));
 
         for (JsonNode block : response.path("content")) {
             if ("tool_use".equals(block.path("type").asText())) {

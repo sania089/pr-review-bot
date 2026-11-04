@@ -1,6 +1,7 @@
 package dev.prbot.github;
 
 import dev.prbot.config.BotProperties;
+import dev.prbot.http.Retrier;
 import java.util.List;
 import java.util.Map;
 import org.springframework.http.MediaType;
@@ -11,8 +12,10 @@ import org.springframework.web.client.RestClient;
 public class GitHubClient {
 
     private final RestClient http;
+    private final Retrier retrier;
 
-    public GitHubClient(BotProperties props, RestClient.Builder builder) {
+    public GitHubClient(BotProperties props, RestClient.Builder builder, Retrier retrier) {
+        this.retrier = retrier;
         this.http =
                 builder.baseUrl("https://api.github.com")
                         .defaultHeader("Authorization", "Bearer " + props.githubToken())
@@ -22,11 +25,13 @@ public class GitHubClient {
 
     public String fetchDiff(String repo, int number) {
         String[] r = split(repo);
-        return http.get()
-                .uri("/repos/{owner}/{name}/pulls/{n}", r[0], r[1], number)
-                .accept(MediaType.valueOf("application/vnd.github.v3.diff"))
-                .retrieve()
-                .body(String.class);
+        return retrier.call(
+                () ->
+                        http.get()
+                                .uri("/repos/{owner}/{name}/pulls/{n}", r[0], r[1], number)
+                                .accept(MediaType.valueOf("application/vnd.github.v3.diff"))
+                                .retrieve()
+                                .body(String.class));
     }
 
     /**
@@ -57,16 +62,19 @@ public class GitHubClient {
                         .toList();
 
         String[] r = split(repo);
-        http.post()
-                .uri("/repos/{owner}/{name}/pulls/{n}/reviews", r[0], r[1], number)
-                .contentType(MediaType.APPLICATION_JSON)
-                .body(
-                        Map.of(
-                                "commit_id", headSha,
-                                "body", summary,
-                                "event", "COMMENT",
-                                "comments", inline))
-                .retrieve()
-                .toBodilessEntity();
+        Map<String, Object> body =
+                Map.of(
+                        "commit_id", headSha,
+                        "body", summary,
+                        "event", "COMMENT",
+                        "comments", inline);
+        retrier.run(
+                () ->
+                        http.post()
+                                .uri("/repos/{owner}/{name}/pulls/{n}/reviews", r[0], r[1], number)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .body(body)
+                                .retrieve()
+                                .toBodilessEntity());
     }
 }

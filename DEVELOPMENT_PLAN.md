@@ -78,11 +78,11 @@ Free-tier limits change. Confirm them on Day 1 and record the numbers in the not
 ## Day 2 – Review pipeline robustness
 *Done when: a 429 or 5xx is retried, and huge or noisy PRs produce a sensible review.*
 
-- [ ] **Retries with backoff.** One small retry helper used by `GitHubClient` and the LLM client: retry on 429/5xx and network errors, honour `Retry-After`, 3 attempts, explicit connect and read timeouts.
-- [ ] **File filtering.** Parse the diff per file and drop lockfiles, minified or generated files, binaries and vendored paths with a list of predicates.
-- [ ] **Smarter truncation.** Cut at file boundaries, not at a character offset mid-hunk (the current `substring` can split a line). Review the files that fit and say which were skipped.
-- [ ] **Skip rules.** Ignore bot-authored PRs, drafts (already done) and PRs with an empty filtered diff.
-- [ ] **Tests.** Unit tests for the filters, truncation and retry helper (no network).
+- [x] **Retries with backoff.** One small retry helper used by `GitHubClient` and the LLM client: retry on 429/5xx and network errors, honour `Retry-After`, 3 attempts, explicit connect and read timeouts. _Note: `Retrier` in `dev.prbot.http`; timeouts via a `RestClientCustomizer` (10s connect, 60s read), all under `prbot.http.*`. `Retry-After` is capped at `retry-max-delay` (30s) so a worker thread is never parked for minutes. Known trade-off: a `postReview` that times out after GitHub accepted it is retried and could post twice; Day 3 dedupe does not cover this._
+- [x] **File filtering.** Parse the diff per file and drop lockfiles, minified or generated files, binaries and vendored paths with a list of predicates. _Note: `FileDiff` + `DiffFilter`. Also drops deleted files, pure renames and mode changes (no hunks), and files with a "generated" banner._
+- [x] **Smarter truncation.** Cut at file boundaries, not at a character offset mid-hunk (the current `substring` can split a line). Review the files that fit and say which were skipped. _Note: `DiffTruncator`; a file too big on its own is skipped, later smaller ones can still fit. Hunk-level splitting of a single huge file is not done._
+- [x] **Skip rules.** Ignore bot-authored PRs, drafts (already done) and PRs with an empty filtered diff. _Note: bot = PR author type `Bot` or login ending `[bot]` (so Dependabot and Renovate are skipped). Empty-diff and "everything too large" skips are log-only until the Day 3 `reviews` table (TODO in `ReviewService`)._
+- [x] **Tests.** Unit tests for the filters, truncation and retry helper (no network).
 
 ## Day 3 – Persistence and idempotency
 *Done when: the same PR + SHA delivered twice is reviewed once, and every review is stored.*
@@ -190,4 +190,5 @@ Add dated one-liners here when something differs from the plan (chosen LLM provi
 - 2026-11-03: Groq free tier: TPM 8000 (gpt-oss-120b/20b), ITPM 7000 (qwen3.8-27b). A ~27 KB diff (~10k tokens) is rejected with 413, so Groq only works with per-file batching (Day 5). `gpt-oss-20b` failed JSON-schema output. `gpt-oss-120b` and `qwen3.8-27b` were accurate on a small diff.
 - 2026-11-03: Gemini free-tier request limits are not published in the docs; read them from the AI Studio rate-limit page for the project and record them here before Day 5 (quota guard). Neon, Render and UptimeRobot limits not yet checked (needed Day 3 and Day 10).
 - 2026-11-03: Day 2 must add explicit read timeouts: one Gemini call hung 155s before the connection reset, and 503s were frequent, so retries matter for the default provider.
+- 2026-11-05: Day 2 done. 69 tests pass. Retries cover the Day 1 finding of Gemini 503s and hangs (60s read timeout instead of 155s).
 - 2026-11-03: AI Studio rate limits for `gemini-3.5-flash-lite` (free tier): 15 RPM, 250K TPM, 500 RPD (the 3.6/3.8 Flash models: 5 RPM, 20 RPD, so unusable for volume). Day 5 quota guard defaults: pace at ~12 RPM (headroom under 15) and daily cap ~450 (headroom under 500); both configurable. Limits are per project and the RPD resets at midnight Pacific.
