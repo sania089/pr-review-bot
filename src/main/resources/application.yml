@@ -3,6 +3,18 @@ spring:
     # Local development only: reads KEY=VALUE lines from ./.env if the file exists (it is git-ignored).
     import: "optional:file:./.env[.properties]"
 
+  # Neon scales to zero, so keep the pool tiny and give the first connection time to wake the DB.
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/prbot}
+    username: ${DB_USER:prbot}
+    password: ${DB_PASSWORD:prbot}
+    hikari:
+      maximum-pool-size: 3
+      minimum-idle: 0
+      connection-timeout: 20000
+      idle-timeout: 60000
+      max-lifetime: 300000
+
 server:
   port: 8080
 
@@ -31,6 +43,10 @@ logging:
     level: "%5p [%X{requestId:-}]"
 
 management:
+  health:
+    db:
+      # The uptime pinger hits /actuator/health every 5 minutes; checking the DB there would keep Neon awake.
+      enabled: false
   endpoints:
     web:
       exposure:

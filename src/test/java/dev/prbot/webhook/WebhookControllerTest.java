@@ -2,11 +2,13 @@ package dev.prbot.webhook;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
@@ -14,11 +16,14 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.prbot.TestProps;
+import dev.prbot.config.BotProperties;
 import dev.prbot.config.BotProperties.Provider;
+import dev.prbot.persistence.ReviewRepository;
 import dev.prbot.review.ReviewService;
 import java.nio.charset.StandardCharsets;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Optional;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import org.junit.jupiter.api.BeforeEach;
@@ -38,16 +43,24 @@ class WebhookControllerTest {
              "repository":{"full_name":"acme/widgets"}}
             """;
 
+    private static final long ID = 5;
+
     private ReviewService reviews;
+    private ReviewRepository repository;
     private MockMvc mvc;
 
     @BeforeEach
     void setUp() {
         reviews = mock(ReviewService.class);
+        repository = mock(ReviewRepository.class);
+        when(repository.enqueue(any(), anyInt(), any(), any(), any())).thenReturn(Optional.of(ID));
+        BotProperties props = TestProps.with(Provider.GEMINI);
         WebhookController controller =
                 new WebhookController(
-                        new SignatureVerifier(TestProps.with(Provider.GEMINI)),
+                        new SignatureVerifier(props),
                         reviews,
+                        repository,
+                        props,
                         new ObjectMapper());
         mvc =
                 MockMvcBuilders.standaloneSetup(controller)
@@ -82,7 +95,7 @@ class WebhookControllerTest {
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(PR_OPENED))
                 .andExpect(status().isUnauthorized());
-        verify(reviews, never()).reviewAsync(anyString(), anyInt(), anyString());
+        verify(reviews, never()).reviewAsync(anyLong(), anyString(), anyInt(), anyString());
     }
 
     @Test
@@ -95,14 +108,24 @@ class WebhookControllerTest {
     @Test
     void queuesReviewForOpenedPullRequest() throws Exception {
         mvc.perform(signed("pull_request", PR_OPENED)).andExpect(status().isAccepted());
-        verify(reviews).reviewAsync("acme/widgets", 7, "abc123");
+        verify(reviews).reviewAsync(ID, "acme/widgets", 7, "abc123");
+    }
+
+    @Test
+    void duplicateDeliveryIsNotReviewedAgain() throws Exception {
+        when(repository.enqueue(any(), anyInt(), any(), any(), any())).thenReturn(Optional.empty());
+
+        mvc.perform(signed("pull_request", PR_OPENED))
+                .andExpect(status().isOk())
+                .andExpect(content().string("duplicate"));
+        verify(reviews, never()).reviewAsync(anyLong(), anyString(), anyInt(), anyString());
     }
 
     @Test
     void ignoresDraftPullRequests() throws Exception {
         mvc.perform(signed("pull_request", PR_OPENED.replace("\"draft\":false", "\"draft\":true")))
                 .andExpect(status().isAccepted());
-        verify(reviews, never()).reviewAsync(anyString(), anyInt(), anyString());
+        verify(reviews, never()).reviewAsync(anyLong(), anyString(), anyInt(), anyString());
     }
 
     @Test
@@ -114,7 +137,7 @@ class WebhookControllerTest {
             String body = PR_OPENED.replace("\"draft\":false", "\"draft\":false,\"user\":" + user);
             mvc.perform(signed("pull_request", body)).andExpect(status().isAccepted());
         }
-        verify(reviews, never()).reviewAsync(anyString(), anyInt(), anyString());
+        verify(reviews, never()).reviewAsync(anyLong(), anyString(), anyInt(), anyString());
     }
 
     @Test
@@ -124,7 +147,7 @@ class WebhookControllerTest {
                         "\"draft\":false",
                         "\"draft\":false,\"user\":{\"login\":\"sania089\",\"type\":\"User\"}");
         mvc.perform(signed("pull_request", body)).andExpect(status().isAccepted());
-        verify(reviews).reviewAsync("acme/widgets", 7, "abc123");
+        verify(reviews).reviewAsync(ID, "acme/widgets", 7, "abc123");
     }
 
     @Test
@@ -144,18 +167,19 @@ class WebhookControllerTest {
     void returns503WhenReviewQueueIsFull() throws Exception {
         doThrow(new TaskRejectedException("full"))
                 .when(reviews)
-                .reviewAsync(any(), anyInt(), any());
+                .reviewAsync(anyLong(), any(), anyInt(), any());
 
         mvc.perform(signed("pull_request", PR_OPENED))
                 .andExpect(status().isServiceUnavailable())
                 .andExpect(header().string("Retry-After", "60"));
+        verify(repository).markSkipped(ID, "review queue is full");
     }
 
     @Test
     void returns500WithGenericBodyOnUnexpectedError() throws Exception {
         doThrow(new IllegalStateException("db password is hunter2"))
                 .when(reviews)
-                .reviewAsync(any(), anyInt(), any());
+                .reviewAsync(anyLong(), any(), anyInt(), any());
 
         mvc.perform(signed("pull_request", PR_OPENED))
                 .andExpect(status().isInternalServerError())

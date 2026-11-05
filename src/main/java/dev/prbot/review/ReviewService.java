@@ -5,6 +5,8 @@ import dev.prbot.config.BotProperties;
 import dev.prbot.github.GitHubClient;
 import dev.prbot.github.GitHubClient.InlineComment;
 import dev.prbot.llm.LlmClient;
+import dev.prbot.llm.LlmResponse;
+import dev.prbot.persistence.ReviewRepository;
 import java.util.List;
 import java.util.stream.Collectors;
 import org.slf4j.Logger;
@@ -19,40 +21,44 @@ public class ReviewService {
 
     private final GitHubClient github;
     private final LlmClient llm;
+    private final ReviewRepository reviews;
     private final BotProperties props;
 
-    public ReviewService(GitHubClient github, LlmClient llm, BotProperties props) {
+    public ReviewService(
+            GitHubClient github, LlmClient llm, ReviewRepository reviews, BotProperties props) {
         this.github = github;
         this.llm = llm;
+        this.reviews = reviews;
         this.props = props;
     }
 
     @Async(AsyncConfig.REVIEW_EXECUTOR)
-    public void reviewAsync(String repo, int number, String headSha) {
+    public void reviewAsync(long id, String repo, int number, String headSha) {
         try {
-            review(repo, number, headSha);
+            review(id, repo, number, headSha);
         } catch (Exception e) {
             log.error("Review failed for {}#{}", repo, number, e);
+            reviews.markFailed(id, e.getClass().getSimpleName() + ": " + e.getMessage());
         }
     }
 
-    void review(String repo, int number, String headSha) {
+    void review(long id, String repo, int number, String headSha) {
         List<FileDiff> all = FileDiff.split(github.fetchDiff(repo, number));
         List<FileDiff> relevant = DiffFilter.relevant(all);
         if (relevant.isEmpty()) {
-            // TODO(day-3): record this as a SKIPPED review row.
             log.info(
                     "{}#{}: nothing to review, all {} changed files are filtered out",
                     repo,
                     number,
                     all.size());
+            reviews.markSkipped(id, "no reviewable files in the diff");
             return;
         }
 
         DiffTruncator.Result fitted = DiffTruncator.fit(relevant, props.maxDiffChars());
         if (fitted.kept().isEmpty()) {
-            // TODO(day-3): record this as a SKIPPED review row.
             log.warn("{}#{}: every changed file is larger than the diff size limit", repo, number);
+            reviews.markSkipped(id, "every changed file is over the diff size limit");
             return;
         }
         log.info(
@@ -65,7 +71,10 @@ public class ReviewService {
                 fitted.skippedPaths().size());
 
         DiffAnnotator.Annotated annotated = DiffAnnotator.annotate(fitted.joinedText());
-        ReviewResult result = llm.review(annotated.text());
+        long started = System.nanoTime();
+        LlmResponse response = llm.review(annotated.text());
+        long latencyMs = (System.nanoTime() - started) / 1_000_000;
+        ReviewResult result = response.review();
 
         List<InlineComment> comments =
                 result.findings().stream()
@@ -90,6 +99,7 @@ public class ReviewService {
 
         String summary = result.summary() + skippedNote(fitted.skippedPaths());
         github.postReview(repo, number, headSha, summary, comments);
+        reviews.markPosted(id, comments.size(), response, latencyMs);
         log.info("Posted review on {}#{} with {} inline comments", repo, number, comments.size());
     }
 

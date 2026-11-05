@@ -54,6 +54,7 @@ In your test repo: Settings → Webhooks → payload URL `https://<ngrok>/webhoo
 | `prbot.http.max-attempts` | – | `3` | Tries per call on HTTP 429, 5xx or network errors |
 | `prbot.http.retry-base-delay` | – | `1s` | First backoff, doubled each retry (a `Retry-After` header wins) |
 | `prbot.http.retry-max-delay` | – | `30s` | Upper bound for any single wait |
+| `spring.datasource.url` / `.username` / `.password` | `DB_URL`, `DB_USER`, `DB_PASSWORD` | local Postgres from `docker-compose.yml` | JDBC URL, e.g. Neon: `jdbc:postgresql://<host>/<db>?sslmode=require`. Flyway creates the schema on startup. The DB is not part of `/actuator/health`, so uptime pings do not keep Neon awake |
 | `prbot.max-comments` | – | `15` | Cap on inline comments per review |
 | `prbot.executor.threads` | – | `2` | Concurrent reviews |
 | `prbot.executor.queue-capacity` | – | `20` | Waiting reviews; beyond this the webhook gets 503 and the review is skipped |
