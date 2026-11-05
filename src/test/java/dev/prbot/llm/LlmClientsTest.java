@@ -31,7 +31,8 @@ class LlmClientsTest {
               {"path":"A.java","line":3,"severity":"high","body":"NPE"}]}
             """;
 
-    private static void assertParsed(ReviewResult result) {
+    private static void assertParsed(LlmResponse response) {
+        ReviewResult result = response.review();
         assertThat(result.summary()).isEqualTo("Looks risky.");
         assertThat(result.findings())
                 .singleElement()
@@ -54,6 +55,14 @@ class LlmClientsTest {
         String body =
                 MAPPER.writeValueAsString(
                         java.util.Map.of(
+                                "usageMetadata",
+                                java.util.Map.of(
+                                        "promptTokenCount",
+                                        10,
+                                        "candidatesTokenCount",
+                                        5,
+                                        "thoughtsTokenCount",
+                                        2),
                                 "candidates",
                                 java.util.List.of(
                                         java.util.Map.of(
@@ -82,7 +91,10 @@ class LlmClientsTest {
                                 .value(org.hamcrest.Matchers.containsString("<diff>")))
                 .andRespond(withSuccess(body, MediaType.APPLICATION_JSON));
 
-        assertParsed(client.review("L1: code"));
+        LlmResponse response = client.review("L1: code");
+        assertParsed(response);
+        assertThat(response.inputTokens()).isEqualTo(10);
+        assertThat(response.outputTokens()).isEqualTo(7); // output + thinking tokens
         server.verify();
     }
 
@@ -153,6 +165,8 @@ class LlmClientsTest {
         String body =
                 MAPPER.writeValueAsString(
                         java.util.Map.of(
+                                "usage",
+                                java.util.Map.of("prompt_tokens", 10, "completion_tokens", 5),
                                 "choices",
                                 java.util.List.of(
                                         java.util.Map.of(
@@ -168,7 +182,10 @@ class LlmClientsTest {
                 .andExpect(jsonPath("$.messages[0].role").value("system"))
                 .andRespond(withSuccess(body, MediaType.APPLICATION_JSON));
 
-        assertParsed(client.review("L1: code"));
+        LlmResponse response = client.review("L1: code");
+        assertParsed(response);
+        assertThat(response.inputTokens()).isEqualTo(10);
+        assertThat(response.outputTokens()).isEqualTo(5);
         server.verify();
     }
 
@@ -195,14 +212,21 @@ class LlmClientsTest {
                 new ClaudeClient(
                         TestProps.with(Provider.CLAUDE), MAPPER, builder, TestProps.retrier());
 
-        String body = "{\"content\":[{\"type\":\"tool_use\",\"input\":" + REVIEW_JSON + "}]}";
+        String body =
+                "{\"usage\":{\"input_tokens\":10,\"output_tokens\":5},"
+                        + "\"content\":[{\"type\":\"tool_use\",\"input\":"
+                        + REVIEW_JSON
+                        + "}]}";
         server.expect(requestTo("https://api.anthropic.com/v1/messages"))
                 .andExpect(header("x-api-key", "test-claude-key"))
                 .andExpect(jsonPath("$.tool_choice.name").value("submit_review"))
                 .andExpect(jsonPath("$.tools[0].input_schema.required[0]").value("summary"))
                 .andRespond(withSuccess(body, MediaType.APPLICATION_JSON));
 
-        assertParsed(client.review("L1: code"));
+        LlmResponse response = client.review("L1: code");
+        assertParsed(response);
+        assertThat(response.inputTokens()).isEqualTo(10);
+        assertThat(response.outputTokens()).isEqualTo(5);
         server.verify();
     }
 }

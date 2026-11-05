@@ -4,7 +4,6 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.prbot.config.BotProperties;
 import dev.prbot.http.Retrier;
-import dev.prbot.review.ReviewResult;
 import java.util.List;
 import java.util.Map;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -36,7 +35,7 @@ public class GroqClient implements LlmClient {
     }
 
     @Override
-    public ReviewResult review(String annotatedDiff) {
+    public LlmResponse review(String annotatedDiff) {
         Map<String, Object> request =
                 Map.of(
                         "model",
@@ -81,6 +80,10 @@ public class GroqClient implements LlmClient {
             throw new IllegalStateException(
                     "Groq returned no content (finish_reason=" + reason + ")");
         }
-        return ReviewPrompt.parse(mapper, content);
+        JsonNode usage = response.path("usage");
+        return new LlmResponse(
+                ReviewPrompt.parse(mapper, content),
+                usage.path("prompt_tokens").asInt(0),
+                usage.path("completion_tokens").asInt(0));
     }
 }

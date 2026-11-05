@@ -4,7 +4,6 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.prbot.config.BotProperties;
 import dev.prbot.http.Retrier;
-import dev.prbot.review.ReviewResult;
 import java.util.List;
 import java.util.Map;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -34,7 +33,7 @@ public class GeminiClient implements LlmClient {
     }
 
     @Override
-    public ReviewResult review(String annotatedDiff) {
+    public LlmResponse review(String annotatedDiff) {
         Map<String, Object> request =
                 Map.of(
                         "systemInstruction",
@@ -81,6 +80,11 @@ public class GeminiClient implements LlmClient {
             throw new IllegalStateException(
                     "Gemini returned no content (finishReason=" + reason + ")");
         }
-        return ReviewPrompt.parse(mapper, text.toString());
+        JsonNode usage = response.path("usageMetadata");
+        return new LlmResponse(
+                ReviewPrompt.parse(mapper, text.toString()),
+                usage.path("promptTokenCount").asInt(0),
+                usage.path("candidatesTokenCount").asInt(0)
+                        + usage.path("thoughtsTokenCount").asInt(0));
     }
 }

@@ -1,0 +1,15 @@
+# Local Postgres only; the defaults in application.yml match these credentials.
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: prbot
+      POSTGRES_USER: prbot
+      POSTGRES_PASSWORD: prbot
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:

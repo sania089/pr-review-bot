@@ -87,11 +87,11 @@ Free-tier limits change. Confirm them on Day 1 and record the numbers in the not
 ## Day 3 – Persistence and idempotency
 *Done when: the same PR + SHA delivered twice is reviewed once, and every review is stored.*
 
-- [ ] **Neon Postgres + Flyway.** Free Neon database, `JdbcClient` (no ORM for one table), Flyway migration for `reviews`: repo, PR, head SHA, status, provider, model, tokens in/out, latency, error, timestamps. Neon scales to zero: small Hikari pool, connection timeout and validation.
-- [ ] **Dedupe by unique key.** `UNIQUE (repo, pr_number, head_sha)`; insert as QUEUED before dispatch and skip on conflict.
-- [ ] **Status lifecycle.** QUEUED → POSTED / FAILED / SKIPPED, written by `ReviewService`; failures store a short error.
-- [ ] **Usage tracking.** Store token counts and latency per review (feeds the quota guard on Day 5).
-- [ ] **Repository test.** One Testcontainers test for insert, conflict and status updates. `docker compose` Postgres for local dev.
+- [x] **Neon Postgres + Flyway.** Free Neon database, `JdbcClient` (no ORM for one table), Flyway migration for `reviews`: repo, PR, head SHA, status, provider, model, tokens in/out, latency, error, timestamps. Neon scales to zero: small Hikari pool, connection timeout and validation. _Note: `spring-boot-starter-jdbc` + `JdbcClient`, migration `V1__reviews.sql` (also has `comments_posted` for Day 6 stats), Hikari pool of 3 with 0 idle and 20s connect timeout, env vars `DB_URL`/`DB_USER`/`DB_PASSWORD`. The DB health check is disabled so the 5-minute UptimeRobot ping does not keep Neon awake. Creating the actual Neon project is still a manual step._
+- [x] **Dedupe by unique key.** `UNIQUE (repo, pr_number, head_sha)`; insert as QUEUED before dispatch and skip on conflict. _Note: one `INSERT ... ON CONFLICT` in `WebhookController`. Deviation: a FAILED or SKIPPED row is re-queued when the webhook is redelivered (so a retry is possible); QUEUED and POSTED are never re-run. A duplicate returns 200 `duplicate`._
+- [x] **Status lifecycle.** QUEUED → POSTED / FAILED / SKIPPED, written by `ReviewService`; failures store a short error. _Note: queue-full and empty/oversized diffs are now SKIPPED rows with a reason; exceptions are FAILED with a 500-char error. This resolved the Day 1 and Day 2 TODOs._
+- [x] **Usage tracking.** Store token counts and latency per review (feeds the quota guard on Day 5). _Note: `LlmClient.review` now returns `LlmResponse` (review + input/output tokens); latency is the LLM call time. Gemini output tokens include thinking tokens._
+- [x] **Repository test.** One Testcontainers test for insert, conflict and status updates. `docker compose` Postgres for local dev. _Note: `ReviewRepositoryTest` skips itself when Docker is missing (it was skipped on the dev machine, runs in CI)._
 
 ## Day 4 – GitHub App authentication
 *Done when: the bot reviews PRs on two different repos where the App is installed, with no PAT.*
@@ -191,4 +191,5 @@ Add dated one-liners here when something differs from the plan (chosen LLM provi
 - 2026-11-03: Gemini free-tier request limits are not published in the docs; read them from the AI Studio rate-limit page for the project and record them here before Day 5 (quota guard). Neon, Render and UptimeRobot limits not yet checked (needed Day 3 and Day 10).
 - 2026-11-03: Day 2 must add explicit read timeouts: one Gemini call hung 155s before the connection reset, and 503s were frequent, so retries matter for the default provider.
 - 2026-11-05: Day 2 done. 69 tests pass. Retries cover the Day 1 finding of Gemini 503s and hangs (60s read timeout instead of 155s).
+- 2026-11-06: Day 3 done. 75 tests (3 need Docker).
 - 2026-11-03: AI Studio rate limits for `gemini-3.5-flash-lite` (free tier): 15 RPM, 250K TPM, 500 RPD (the 3.6/3.8 Flash models: 5 RPM, 20 RPD, so unusable for volume). Day 5 quota guard defaults: pace at ~12 RPM (headroom under 15) and daily cap ~450 (headroom under 500); both configurable. Limits are per project and the RPD resets at midnight Pacific.

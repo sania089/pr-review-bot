@@ -2,8 +2,11 @@ package dev.prbot.webhook;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import dev.prbot.config.BotProperties;
+import dev.prbot.persistence.ReviewRepository;
 import dev.prbot.review.ReviewService;
 import java.io.IOException;
+import java.util.Optional;
 import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -23,12 +26,20 @@ public class WebhookController {
 
     private final SignatureVerifier verifier;
     private final ReviewService reviews;
+    private final ReviewRepository repository;
+    private final BotProperties props;
     private final ObjectMapper mapper;
 
     public WebhookController(
-            SignatureVerifier verifier, ReviewService reviews, ObjectMapper mapper) {
+            SignatureVerifier verifier,
+            ReviewService reviews,
+            ReviewRepository repository,
+            BotProperties props,
+            ObjectMapper mapper) {
         this.verifier = verifier;
         this.reviews = reviews;
+        this.repository = repository;
+        this.props = props;
         this.mapper = mapper;
     }
 
@@ -64,10 +75,23 @@ public class WebhookController {
         String headSha = pr.path("head").path("sha").asText();
         log.info("PR event: {}#{} action={} sha={}", repo, number, action, headSha);
 
+        Optional<Long> id =
+                repository.enqueue(
+                        repo,
+                        number,
+                        headSha,
+                        props.llm().provider().name(),
+                        props.llm().selected().model());
+        if (id.isEmpty()) {
+            log.info(
+                    "Duplicate delivery for {}#{} sha={}, already reviewed", repo, number, headSha);
+            return ResponseEntity.ok("duplicate");
+        }
+
         try {
-            reviews.reviewAsync(repo, number, headSha);
+            reviews.reviewAsync(id.get(), repo, number, headSha);
         } catch (TaskRejectedException e) {
-            // TODO(day-3): record this as a SKIPPED review row once the reviews table exists.
+            repository.markSkipped(id.get(), "review queue is full");
             log.warn("SKIPPED {}#{} sha={}: review queue is full", repo, number, headSha);
             return ResponseEntity.status(503).header("Retry-After", "60").body("review queue full");
         }

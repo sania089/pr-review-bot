@@ -4,7 +4,6 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.prbot.config.BotProperties;
 import dev.prbot.http.Retrier;
-import dev.prbot.review.ReviewResult;
 import java.util.List;
 import java.util.Map;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -45,7 +44,7 @@ public class ClaudeClient implements LlmClient {
     }
 
     @Override
-    public ReviewResult review(String annotatedDiff) {
+    public LlmResponse review(String annotatedDiff) {
         Map<String, Object> request =
                 Map.of(
                         "model",
@@ -78,7 +77,11 @@ public class ClaudeClient implements LlmClient {
 
         for (JsonNode block : response.path("content")) {
             if ("tool_use".equals(block.path("type").asText())) {
-                return ReviewPrompt.parse(mapper, block.path("input").toString());
+                JsonNode usage = response.path("usage");
+                return new LlmResponse(
+                        ReviewPrompt.parse(mapper, block.path("input").toString()),
+                        usage.path("input_tokens").asInt(0),
+                        usage.path("output_tokens").asInt(0));
             }
         }
         throw new IllegalStateException("Model did not call submit_review");
