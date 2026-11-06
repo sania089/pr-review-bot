@@ -14,13 +14,37 @@ import org.springframework.validation.annotation.Validated;
 @Validated
 @ConfigurationProperties(prefix = "prbot")
 public record BotProperties(
-        @NotBlank String githubToken,
+        @Valid @NotNull GitHub github,
         @NotBlank String webhookSecret,
         @Min(1) int maxDiffChars,
         @Min(1) int maxComments,
         @Valid @NotNull Llm llm,
         @Valid @NotNull Executor executor,
         @Valid @DefaultValue Http http) {
+
+    public enum Auth {
+        PAT,
+        APP
+    }
+
+    /** PAT is for local development; APP (JWT, then installation token) is for real use. */
+    public record GitHub(@NotNull Auth auth, String token, String appId, String appPrivateKey) {
+
+        @AssertTrue(message = "the credentials of the selected prbot.github.auth must be set")
+        public boolean isCredentialsPresent() {
+            if (auth == null) {
+                return true; // reported by @NotNull
+            }
+            return switch (auth) {
+                case PAT -> hasText(token);
+                case APP -> hasText(appId) && hasText(appPrivateKey);
+            };
+        }
+
+        private static boolean hasText(String s) {
+            return s != null && !s.isBlank();
+        }
+    }
 
     public enum Provider {
         GEMINI,

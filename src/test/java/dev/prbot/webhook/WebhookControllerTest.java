@@ -40,7 +40,8 @@ class WebhookControllerTest {
             """
             {"action":"opened",
              "pull_request":{"number":7,"draft":false,"head":{"sha":"abc123"}},
-             "repository":{"full_name":"acme/widgets"}}
+             "repository":{"full_name":"acme/widgets"},
+             "installation":{"id":99}}
             """;
 
     private static final long ID = 5;
@@ -95,7 +96,8 @@ class WebhookControllerTest {
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(PR_OPENED))
                 .andExpect(status().isUnauthorized());
-        verify(reviews, never()).reviewAsync(anyLong(), anyString(), anyInt(), anyString());
+        verify(reviews, never())
+                .reviewAsync(anyLong(), anyLong(), anyString(), anyInt(), anyString());
     }
 
     @Test
@@ -108,7 +110,7 @@ class WebhookControllerTest {
     @Test
     void queuesReviewForOpenedPullRequest() throws Exception {
         mvc.perform(signed("pull_request", PR_OPENED)).andExpect(status().isAccepted());
-        verify(reviews).reviewAsync(ID, "acme/widgets", 7, "abc123");
+        verify(reviews).reviewAsync(ID, 99, "acme/widgets", 7, "abc123");
     }
 
     @Test
@@ -118,14 +120,16 @@ class WebhookControllerTest {
         mvc.perform(signed("pull_request", PR_OPENED))
                 .andExpect(status().isOk())
                 .andExpect(content().string("duplicate"));
-        verify(reviews, never()).reviewAsync(anyLong(), anyString(), anyInt(), anyString());
+        verify(reviews, never())
+                .reviewAsync(anyLong(), anyLong(), anyString(), anyInt(), anyString());
     }
 
     @Test
     void ignoresDraftPullRequests() throws Exception {
         mvc.perform(signed("pull_request", PR_OPENED.replace("\"draft\":false", "\"draft\":true")))
                 .andExpect(status().isAccepted());
-        verify(reviews, never()).reviewAsync(anyLong(), anyString(), anyInt(), anyString());
+        verify(reviews, never())
+                .reviewAsync(anyLong(), anyLong(), anyString(), anyInt(), anyString());
     }
 
     @Test
@@ -137,7 +141,8 @@ class WebhookControllerTest {
             String body = PR_OPENED.replace("\"draft\":false", "\"draft\":false,\"user\":" + user);
             mvc.perform(signed("pull_request", body)).andExpect(status().isAccepted());
         }
-        verify(reviews, never()).reviewAsync(anyLong(), anyString(), anyInt(), anyString());
+        verify(reviews, never())
+                .reviewAsync(anyLong(), anyLong(), anyString(), anyInt(), anyString());
     }
 
     @Test
@@ -147,7 +152,7 @@ class WebhookControllerTest {
                         "\"draft\":false",
                         "\"draft\":false,\"user\":{\"login\":\"sania089\",\"type\":\"User\"}");
         mvc.perform(signed("pull_request", body)).andExpect(status().isAccepted());
-        verify(reviews).reviewAsync(ID, "acme/widgets", 7, "abc123");
+        verify(reviews).reviewAsync(ID, 99, "acme/widgets", 7, "abc123");
     }
 
     @Test
@@ -167,7 +172,7 @@ class WebhookControllerTest {
     void returns503WhenReviewQueueIsFull() throws Exception {
         doThrow(new TaskRejectedException("full"))
                 .when(reviews)
-                .reviewAsync(anyLong(), any(), anyInt(), any());
+                .reviewAsync(anyLong(), anyLong(), any(), anyInt(), any());
 
         mvc.perform(signed("pull_request", PR_OPENED))
                 .andExpect(status().isServiceUnavailable())
@@ -179,7 +184,7 @@ class WebhookControllerTest {
     void returns500WithGenericBodyOnUnexpectedError() throws Exception {
         doThrow(new IllegalStateException("db password is hunter2"))
                 .when(reviews)
-                .reviewAsync(anyLong(), any(), anyInt(), any());
+                .reviewAsync(anyLong(), anyLong(), any(), anyInt(), any());
 
         mvc.perform(signed("pull_request", PR_OPENED))
                 .andExpect(status().isInternalServerError())

@@ -23,6 +23,8 @@ Needs JDK 21 and Maven. Put secrets in environment variables, or in a git-ignore
 project root (`KEY=value` per line, read automatically at startup):
 ```bash
 GITHUB_TOKEN=ghp_...            # fine-grained PAT: Pull requests (rw), Contents (r)
+# or, for a GitHub App: GITHUB_AUTH=app, GITHUB_APP_ID=..., GITHUB_APP_PRIVATE_KEY="-----BEGIN RSA PRIVATE KEY-----
+..."
 GITHUB_WEBHOOK_SECRET=some-long-random-string
 GEMINI_API_KEY=...              # or GROQ_API_KEY / ANTHROPIC_API_KEY, see LLM_PROVIDER below
 ```
@@ -30,7 +32,7 @@ GEMINI_API_KEY=...              # or GROQ_API_KEY / ANTHROPIC_API_KEY, see LLM_P
 mvn spring-boot:run
 ngrok http 8080                         # expose it for GitHub
 ```
-The app refuses to start if the GitHub token, the webhook secret, or the API key of the selected
+The app refuses to start if the GitHub credentials, the webhook secret, or the API key of the selected
 provider is missing.
 
 In your test repo: Settings → Webhooks → payload URL `https://<ngrok>/webhook/github`, content type
@@ -42,7 +44,11 @@ In your test repo: Settings → Webhooks → payload URL `https://<ngrok>/webhoo
 
 | Property | Env var | Default | Notes |
 |----------|---------|---------|-------|
-| `prbot.github-token` | `GITHUB_TOKEN` | – (required) | Replaced by GitHub App auth later |
+| `prbot.github.auth` | `GITHUB_AUTH` | `pat` | `pat` (local dev, one token) or `app` (GitHub App, works on every repo it is installed on) |
+| `prbot.github.token` | `GITHUB_TOKEN` | – | Required when `auth=pat` |
+| `prbot.github.app-id` | `GITHUB_APP_ID` | – | Required when `auth=app` |
+| `prbot.github.app-private-key` | `GITHUB_APP_PRIVATE_KEY` | – | Required when `auth=app`. The `.pem` text GitHub gives you (PKCS#1 or PKCS#8); literal `
+` sequences are accepted so it fits on one env line |
 | `prbot.webhook-secret` | `GITHUB_WEBHOOK_SECRET` | – (required) | Webhook HMAC secret |
 | `prbot.llm.provider` | `LLM_PROVIDER` | `gemini` | `gemini`, `groq` or `claude` |
 | `prbot.llm.gemini.api-key` / `.model` | `GEMINI_API_KEY` | – / `gemini-3.5-flash-lite` | |

@@ -1,7 +1,9 @@
 package dev.prbot;
 
 import dev.prbot.config.BotProperties;
+import dev.prbot.config.BotProperties.Auth;
 import dev.prbot.config.BotProperties.Executor;
+import dev.prbot.config.BotProperties.GitHub;
 import dev.prbot.config.BotProperties.Http;
 import dev.prbot.config.BotProperties.Llm;
 import dev.prbot.config.BotProperties.Provider;
@@ -18,7 +20,7 @@ public final class TestProps {
 
     public static BotProperties with(Provider provider) {
         return new BotProperties(
-                "test-github-token",
+                new GitHub(Auth.PAT, "test-github-token", null, null),
                 WEBHOOK_SECRET,
                 60000,
                 15,
