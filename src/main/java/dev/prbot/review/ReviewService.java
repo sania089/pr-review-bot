@@ -33,17 +33,17 @@ public class ReviewService {
     }
 
     @Async(AsyncConfig.REVIEW_EXECUTOR)
-    public void reviewAsync(long id, String repo, int number, String headSha) {
+    public void reviewAsync(long id, long installationId, String repo, int number, String headSha) {
         try {
-            review(id, repo, number, headSha);
+            review(id, installationId, repo, number, headSha);
         } catch (Exception e) {
             log.error("Review failed for {}#{}", repo, number, e);
             reviews.markFailed(id, e.getClass().getSimpleName() + ": " + e.getMessage());
         }
     }
 
-    void review(long id, String repo, int number, String headSha) {
-        List<FileDiff> all = FileDiff.split(github.fetchDiff(repo, number));
+    void review(long id, long installationId, String repo, int number, String headSha) {
+        List<FileDiff> all = FileDiff.split(github.fetchDiff(installationId, repo, number));
         List<FileDiff> relevant = DiffFilter.relevant(all);
         if (relevant.isEmpty()) {
             log.info(
@@ -98,7 +98,7 @@ public class ReviewService {
         }
 
         String summary = result.summary() + skippedNote(fitted.skippedPaths());
-        github.postReview(repo, number, headSha, summary, comments);
+        github.postReview(installationId, repo, number, headSha, summary, comments);
         reviews.markPosted(id, comments.size(), response, latencyMs);
         log.info("Posted review on {}#{} with {} inline comments", repo, number, comments.size());
     }

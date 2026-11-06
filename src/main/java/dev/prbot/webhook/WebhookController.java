@@ -72,6 +72,7 @@ public class WebhookController {
 
         String repo = payload.path("repository").path("full_name").asText();
         int number = pr.path("number").asInt();
+        long installationId = payload.path("installation").path("id").asLong(0);
         String headSha = pr.path("head").path("sha").asText();
         log.info("PR event: {}#{} action={} sha={}", repo, number, action, headSha);
 
@@ -89,7 +90,7 @@ public class WebhookController {
         }
 
         try {
-            reviews.reviewAsync(id.get(), repo, number, headSha);
+            reviews.reviewAsync(id.get(), installationId, repo, number, headSha);
         } catch (TaskRejectedException e) {
             repository.markSkipped(id.get(), "review queue is full");
             log.warn("SKIPPED {}#{} sha={}: review queue is full", repo, number, headSha);
