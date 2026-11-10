@@ -96,7 +96,7 @@ Free-tier limits change. Confirm them on Day 1 and record the numbers in the not
 ## Day 4 – GitHub App authentication
 *Done when: the bot reviews PRs on two different repos where the App is installed, with no PAT.*
 
-- [ ] **Create the GitHub App.** Permissions: Pull requests (rw), Contents (r), Metadata (r); subscribe to Pull request events; set the webhook secret.
+- [x] **Create the GitHub App.** Permissions: Pull requests (rw), Contents (r), Metadata (r); subscribe to Pull request events; set the webhook secret.
 - [x] **`TokenProvider` interface.** `PatTokenProvider` (local dev) and `GitHubAppTokenProvider` (RS256 JWT → installation token). _Note: selected with `prbot.github.auth` (`pat`/`app`); JWT is signed with the JDK (`AppJwt`, no library) and accepts PKCS#1 and PKCS#8 PEM keys. `prbot.github-token` became `prbot.github.token`._
 - [x] **Token cache.** Cache installation tokens per installation until about 5 minutes before expiry; read `installation.id` from the webhook payload. _Note: `ConcurrentHashMap.compute` per installation, so concurrent reviews mint one token._
 - [x] **Wire `GitHubClient`.** Take the token per call from the provider. _Note: `fetchDiff` and `postReview` take `installationId`, passed from the webhook through `ReviewService`._
