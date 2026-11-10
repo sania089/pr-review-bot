@@ -11,7 +11,6 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
 import dev.prbot.TestProps;
-import dev.prbot.config.BotProperties.Provider;
 import dev.prbot.github.GitHubClient.InlineComment;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
@@ -33,7 +32,7 @@ class GitHubClientTest {
     void setUp() {
         RestClient.Builder builder = RestClient.builder();
         server = MockRestServiceServer.bindTo(builder).build();
-        client = new GitHubClient(TestProps.with(Provider.GEMINI), builder, TestProps.retrier());
+        client = new GitHubClient(id -> "test-github-token", builder, TestProps.retrier());
     }
 
     @Test
@@ -43,7 +42,7 @@ class GitHubClientTest {
         server.expect(ExpectedCount.once(), requestTo(url))
                 .andRespond(withSuccess("diff --git a/x b/x", MediaType.TEXT_PLAIN));
 
-        assertThat(client.fetchDiff("acme/widgets", 7)).startsWith("diff --git");
+        assertThat(client.fetchDiff(1, "acme/widgets", 7)).startsWith("diff --git");
         server.verify();
     }
 
@@ -52,7 +51,7 @@ class GitHubClientTest {
         server.expect(ExpectedCount.once(), requestTo(org.hamcrest.Matchers.any(String.class)))
                 .andRespond(withStatus(HttpStatus.NOT_FOUND));
 
-        assertThatThrownBy(() -> client.fetchDiff("acme/widgets", 7))
+        assertThatThrownBy(() -> client.fetchDiff(1, "acme/widgets", 7))
                 .isInstanceOf(HttpClientErrorException.NotFound.class);
         server.verify();
     }
@@ -64,7 +63,7 @@ class GitHubClientTest {
                 .andRespond(withStatus(HttpStatus.TOO_MANY_REQUESTS));
         server.expect(ExpectedCount.once(), requestTo(url)).andRespond(withSuccess());
 
-        client.postReview("acme/widgets", 7, "abc123", "summary", List.of());
+        client.postReview(1, "acme/widgets", 7, "abc123", "summary", List.of());
         server.verify();
     }
 
@@ -76,7 +75,7 @@ class GitHubClientTest {
                 .andExpect(header("Authorization", "Bearer test-github-token"))
                 .andRespond(withSuccess("diff --git a/x b/x", MediaType.TEXT_PLAIN));
 
-        assertThat(client.fetchDiff("acme/widgets", 7)).startsWith("diff --git");
+        assertThat(client.fetchDiff(1, "acme/widgets", 7)).startsWith("diff --git");
         server.verify();
     }
 
@@ -90,11 +89,54 @@ class GitHubClientTest {
                 .andRespond(withSuccess());
 
         client.postReview(
+                1,
                 "acme/widgets",
                 7,
                 "abc123",
                 "summary",
                 List.of(new InlineComment("A.java", 3, "bug")));
         server.verify();
+    }
+
+    @Test
+    void fetchFileReadsRawContentAtTheGivenRef() {
+        server.expect(
+                        requestTo(
+                                "https://api.github.com/repos/acme/widgets/contents/.prbot.yml?ref=main"))
+                .andExpect(method(HttpMethod.GET))
+                .andExpect(header("Authorization", "Bearer test-github-token"))
+                .andExpect(header("Accept", "application/vnd.github.raw+json"))
+                .andRespond(withSuccess("strictness: low", MediaType.TEXT_PLAIN));
+
+        assertThat(client.fetchFile(1, "acme/widgets", ".prbot.yml", "main"))
+                .contains("strictness: low");
+        server.verify();
+    }
+
+    @Test
+    void fetchFileIsEmptyWhenTheFileDoesNotExist() {
+        server.expect(ExpectedCount.once(), requestTo(org.hamcrest.Matchers.any(String.class)))
+                .andRespond(withStatus(HttpStatus.NOT_FOUND));
+
+        assertThat(client.fetchFile(1, "acme/widgets", ".prbot.yml", "main")).isEmpty();
+        server.verify();
+    }
+
+    @Test
+    void fetchFileOmitsTheRefWhenUnknown() {
+        server.expect(requestTo("https://api.github.com/repos/acme/widgets/contents/.prbot.yml"))
+                .andRespond(withSuccess("a: b", MediaType.TEXT_PLAIN));
+
+        assertThat(client.fetchFile(1, "acme/widgets", ".prbot.yml", "")).isPresent();
+        server.verify();
+    }
+
+    @Test
+    void fetchFileStillFailsOnServerErrorsAfterRetries() {
+        server.expect(ExpectedCount.times(3), requestTo(org.hamcrest.Matchers.any(String.class)))
+                .andRespond(withServerError());
+
+        assertThatThrownBy(() -> client.fetchFile(1, "acme/widgets", ".prbot.yml", "main"))
+                .isInstanceOf(org.springframework.web.client.HttpServerErrorException.class);
     }
 }

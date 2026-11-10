@@ -1,11 +1,12 @@
 package dev.prbot.github;
 
-import dev.prbot.config.BotProperties;
 import dev.prbot.http.Retrier;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClient;
 
 @Component
@@ -13,25 +14,60 @@ public class GitHubClient {
 
     private final RestClient http;
     private final Retrier retrier;
+    private final TokenProvider tokens;
 
-    public GitHubClient(BotProperties props, RestClient.Builder builder, Retrier retrier) {
+    public GitHubClient(TokenProvider tokens, RestClient.Builder builder, Retrier retrier) {
+        this.tokens = tokens;
         this.retrier = retrier;
-        this.http =
-                builder.baseUrl("https://api.github.com")
-                        .defaultHeader("Authorization", "Bearer " + props.githubToken())
-                        .defaultHeader("X-GitHub-Api-Version", "2022-11-28")
-                        .build();
+        this.http = GitHubHttp.client(builder);
     }
 
-    public String fetchDiff(String repo, int number) {
+    public String fetchDiff(long installationId, String repo, int number) {
         String[] r = split(repo);
+        String token = tokens.tokenFor(installationId);
         return retrier.call(
                 () ->
                         http.get()
                                 .uri("/repos/{owner}/{name}/pulls/{n}", r[0], r[1], number)
+                                .headers(h -> h.setBearerAuth(token))
                                 .accept(MediaType.valueOf("application/vnd.github.v3.diff"))
                                 .retrieve()
                                 .body(String.class));
+    }
+
+    /**
+     * Reads one file at a ref (the PR's base branch, so a PR cannot change its own review rules).
+     * Empty if the file does not exist; any other error is thrown.
+     */
+    public Optional<String> fetchFile(long installationId, String repo, String path, String ref) {
+        String[] r = split(repo);
+        String token = tokens.tokenFor(installationId);
+        try {
+            return Optional.ofNullable(
+                    retrier.call(
+                            () ->
+                                    http.get()
+                                            .uri(
+                                                    b ->
+                                                            b.path(
+                                                                            "/repos/{owner}/{name}/contents/{path}")
+                                                                    .queryParamIfPresent(
+                                                                            "ref",
+                                                                            Optional.ofNullable(ref)
+                                                                                    .filter(
+                                                                                            s ->
+                                                                                                    !s
+                                                                                                            .isBlank()))
+                                                                    .build(r[0], r[1], path))
+                                            .headers(h -> h.setBearerAuth(token))
+                                            .accept(
+                                                    MediaType.valueOf(
+                                                            "application/vnd.github.raw+json"))
+                                            .retrieve()
+                                            .body(String.class)));
+        } catch (HttpClientErrorException.NotFound e) {
+            return Optional.empty();
+        }
     }
 
     /**
@@ -49,7 +85,12 @@ public class GitHubClient {
     public record InlineComment(String path, int line, String body) {}
 
     public void postReview(
-            String repo, int number, String headSha, String summary, List<InlineComment> comments) {
+            long installationId,
+            String repo,
+            int number,
+            String headSha,
+            String summary,
+            List<InlineComment> comments) {
         List<Map<String, Object>> inline =
                 comments.stream()
                         .<Map<String, Object>>map(
@@ -62,6 +103,7 @@ public class GitHubClient {
                         .toList();
 
         String[] r = split(repo);
+        String token = tokens.tokenFor(installationId);
         Map<String, Object> body =
                 Map.of(
                         "commit_id", headSha,
@@ -72,6 +114,7 @@ public class GitHubClient {
                 () ->
                         http.post()
                                 .uri("/repos/{owner}/{name}/pulls/{n}/reviews", r[0], r[1], number)
+                                .headers(h -> h.setBearerAuth(token))
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .body(body)
                                 .retrieve()

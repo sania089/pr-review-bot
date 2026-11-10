@@ -19,10 +19,19 @@ server:
   port: 8080
 
 prbot:
-  github-token: ${GITHUB_TOKEN:}
+  github:
+    auth: ${GITHUB_AUTH:pat} # pat (local dev) or app (GitHub App, works across repos)
+    token: ${GITHUB_TOKEN:}
+    app-id: ${GITHUB_APP_ID:}
+    app-private-key: ${GITHUB_APP_PRIVATE_KEY:} # PEM text; literal \n sequences are accepted
   webhook-secret: ${GITHUB_WEBHOOK_SECRET:}
   max-diff-chars: 60000
-  max-comments: 15
+  max-comments: 15 # hard upper bound; .prbot.yml strictness can lower it
+  max-batch-chars: 24000 # diff chars per model request; bigger PRs are reviewed in several requests
+  quota: # defaults sit under the Gemini free tier of gemini-3.5-flash-lite (15 RPM, 500 RPD)
+    requests-per-minute: 12
+    daily-limit: 450
+    reset-zone: America/Los_Angeles # the provider's daily quota resets at midnight in this zone
   llm:
     provider: ${LLM_PROVIDER:gemini}
     gemini:

@@ -23,6 +23,8 @@ Needs JDK 21 and Maven. Put secrets in environment variables, or in a git-ignore
 project root (`KEY=value` per line, read automatically at startup):
 ```bash
 GITHUB_TOKEN=ghp_...            # fine-grained PAT: Pull requests (rw), Contents (r)
+# or, for a GitHub App: GITHUB_AUTH=app, GITHUB_APP_ID=..., GITHUB_APP_PRIVATE_KEY="-----BEGIN RSA PRIVATE KEY-----
+..."
 GITHUB_WEBHOOK_SECRET=some-long-random-string
 GEMINI_API_KEY=...              # or GROQ_API_KEY / ANTHROPIC_API_KEY, see LLM_PROVIDER below
 ```
@@ -30,7 +32,7 @@ GEMINI_API_KEY=...              # or GROQ_API_KEY / ANTHROPIC_API_KEY, see LLM_P
 mvn spring-boot:run
 ngrok http 8080                         # expose it for GitHub
 ```
-The app refuses to start if the GitHub token, the webhook secret, or the API key of the selected
+The app refuses to start if the GitHub credentials, the webhook secret, or the API key of the selected
 provider is missing.
 
 In your test repo: Settings → Webhooks → payload URL `https://<ngrok>/webhook/github`, content type
@@ -42,7 +44,11 @@ In your test repo: Settings → Webhooks → payload URL `https://<ngrok>/webhoo
 
 | Property | Env var | Default | Notes |
 |----------|---------|---------|-------|
-| `prbot.github-token` | `GITHUB_TOKEN` | – (required) | Replaced by GitHub App auth later |
+| `prbot.github.auth` | `GITHUB_AUTH` | `pat` | `pat` (local dev, one token) or `app` (GitHub App, works on every repo it is installed on) |
+| `prbot.github.token` | `GITHUB_TOKEN` | – | Required when `auth=pat` |
+| `prbot.github.app-id` | `GITHUB_APP_ID` | – | Required when `auth=app` |
+| `prbot.github.app-private-key` | `GITHUB_APP_PRIVATE_KEY` | – | Required when `auth=app`. The `.pem` text GitHub gives you (PKCS#1 or PKCS#8); literal `
+` sequences are accepted so it fits on one env line |
 | `prbot.webhook-secret` | `GITHUB_WEBHOOK_SECRET` | – (required) | Webhook HMAC secret |
 | `prbot.llm.provider` | `LLM_PROVIDER` | `gemini` | `gemini`, `groq` or `claude` |
 | `prbot.llm.gemini.api-key` / `.model` | `GEMINI_API_KEY` | – / `gemini-3.5-flash-lite` | |
@@ -55,9 +61,33 @@ In your test repo: Settings → Webhooks → payload URL `https://<ngrok>/webhoo
 | `prbot.http.retry-base-delay` | – | `1s` | First backoff, doubled each retry (a `Retry-After` header wins) |
 | `prbot.http.retry-max-delay` | – | `30s` | Upper bound for any single wait |
 | `spring.datasource.url` / `.username` / `.password` | `DB_URL`, `DB_USER`, `DB_PASSWORD` | local Postgres from `docker-compose.yml` | JDBC URL, e.g. Neon: `jdbc:postgresql://<host>/<db>?sslmode=require`. Flyway creates the schema on startup. The DB is not part of `/actuator/health`, so uptime pings do not keep Neon awake |
-| `prbot.max-comments` | – | `15` | Cap on inline comments per review |
+| `prbot.max-comments` | – | `15` | Hard upper bound on inline comments per review (`.prbot.yml` strictness can only lower it) |
+| `prbot.max-batch-chars` | – | `24000` | Diff characters per model request. A bigger PR is reviewed in several requests, each with its own set of files. Lower it (about `12000`) for Groq's free tier |
+| `prbot.quota.requests-per-minute` | – | `12` | Model requests are spaced evenly to stay under this. Default leaves headroom under Gemini's 15 RPM |
+| `prbot.quota.daily-limit` | – | `450` | Model requests per day, counted in the database. When used up, new reviews are recorded as SKIPPED and nothing is posted. Default leaves headroom under Gemini's 500 RPD |
+| `prbot.quota.reset-zone` | – | `America/Los_Angeles` | Time zone in which the day (and the provider's quota) rolls over |
 | `prbot.executor.threads` | – | `2` | Concurrent reviews |
 | `prbot.executor.queue-capacity` | – | `20` | Waiting reviews; beyond this the webhook gets 503 and the review is skipped |
+
+## Per-repo settings: `.prbot.yml`
+
+Put a `.prbot.yml` in the root of a repository. It is read from the pull request's **base branch**, so a PR cannot change its own review rules.
+
+```yaml
+# Files to leave out of the review, on top of lockfiles, generated and vendored files.
+ignore:
+  - docs/          # a directory: everything below it
+  - "*.md"         # no slash: matches at any depth
+  - /build         # leading slash: only at the repo root
+  - src/**/gen/**  # ** crosses directories, * stays inside one
+
+# low:    only high severity findings, at most 5 comments
+# normal: medium and high, at most 10 comments (default)
+# high:   everything, at most 15 comments
+strictness: normal
+```
+
+Unknown keys, a wrong type or invalid YAML make the bot ignore the whole file and use the defaults. The review summary says so. `prbot.max-comments` stays an upper bound.
 
 ## Milestones
 

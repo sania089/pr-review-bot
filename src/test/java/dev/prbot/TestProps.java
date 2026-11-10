@@ -1,7 +1,9 @@
 package dev.prbot;
 
 import dev.prbot.config.BotProperties;
+import dev.prbot.config.BotProperties.Auth;
 import dev.prbot.config.BotProperties.Executor;
+import dev.prbot.config.BotProperties.GitHub;
 import dev.prbot.config.BotProperties.Http;
 import dev.prbot.config.BotProperties.Llm;
 import dev.prbot.config.BotProperties.Provider;
@@ -18,10 +20,11 @@ public final class TestProps {
 
     public static BotProperties with(Provider provider) {
         return new BotProperties(
-                "test-github-token",
+                new GitHub(Auth.PAT, "test-github-token", null, null),
                 WEBHOOK_SECRET,
                 60000,
                 15,
+                24000,
                 new Llm(
                         provider,
                         new ProviderConfig("test-gemini-key", "gemini-test"),
@@ -33,7 +36,8 @@ public final class TestProps {
                         Duration.ofSeconds(1),
                         3,
                         Duration.ZERO,
-                        Duration.ZERO));
+                        Duration.ZERO),
+                new BotProperties.Quota(600, 450, "America/Los_Angeles"));
     }
 
     /** Three attempts and no real waiting. */
