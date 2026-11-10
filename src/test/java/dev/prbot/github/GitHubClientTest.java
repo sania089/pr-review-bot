@@ -97,4 +97,46 @@ class GitHubClientTest {
                 List.of(new InlineComment("A.java", 3, "bug")));
         server.verify();
     }
+
+    @Test
+    void fetchFileReadsRawContentAtTheGivenRef() {
+        server.expect(
+                        requestTo(
+                                "https://api.github.com/repos/acme/widgets/contents/.prbot.yml?ref=main"))
+                .andExpect(method(HttpMethod.GET))
+                .andExpect(header("Authorization", "Bearer test-github-token"))
+                .andExpect(header("Accept", "application/vnd.github.raw+json"))
+                .andRespond(withSuccess("strictness: low", MediaType.TEXT_PLAIN));
+
+        assertThat(client.fetchFile(1, "acme/widgets", ".prbot.yml", "main"))
+                .contains("strictness: low");
+        server.verify();
+    }
+
+    @Test
+    void fetchFileIsEmptyWhenTheFileDoesNotExist() {
+        server.expect(ExpectedCount.once(), requestTo(org.hamcrest.Matchers.any(String.class)))
+                .andRespond(withStatus(HttpStatus.NOT_FOUND));
+
+        assertThat(client.fetchFile(1, "acme/widgets", ".prbot.yml", "main")).isEmpty();
+        server.verify();
+    }
+
+    @Test
+    void fetchFileOmitsTheRefWhenUnknown() {
+        server.expect(requestTo("https://api.github.com/repos/acme/widgets/contents/.prbot.yml"))
+                .andRespond(withSuccess("a: b", MediaType.TEXT_PLAIN));
+
+        assertThat(client.fetchFile(1, "acme/widgets", ".prbot.yml", "")).isPresent();
+        server.verify();
+    }
+
+    @Test
+    void fetchFileStillFailsOnServerErrorsAfterRetries() {
+        server.expect(ExpectedCount.times(3), requestTo(org.hamcrest.Matchers.any(String.class)))
+                .andRespond(withServerError());
+
+        assertThatThrownBy(() -> client.fetchFile(1, "acme/widgets", ".prbot.yml", "main"))
+                .isInstanceOf(org.springframework.web.client.HttpServerErrorException.class);
+    }
 }

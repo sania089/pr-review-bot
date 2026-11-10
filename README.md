@@ -61,9 +61,33 @@ In your test repo: Settings → Webhooks → payload URL `https://<ngrok>/webhoo
 | `prbot.http.retry-base-delay` | – | `1s` | First backoff, doubled each retry (a `Retry-After` header wins) |
 | `prbot.http.retry-max-delay` | – | `30s` | Upper bound for any single wait |
 | `spring.datasource.url` / `.username` / `.password` | `DB_URL`, `DB_USER`, `DB_PASSWORD` | local Postgres from `docker-compose.yml` | JDBC URL, e.g. Neon: `jdbc:postgresql://<host>/<db>?sslmode=require`. Flyway creates the schema on startup. The DB is not part of `/actuator/health`, so uptime pings do not keep Neon awake |
-| `prbot.max-comments` | – | `15` | Cap on inline comments per review |
+| `prbot.max-comments` | – | `15` | Hard upper bound on inline comments per review (`.prbot.yml` strictness can only lower it) |
+| `prbot.max-batch-chars` | – | `24000` | Diff characters per model request. A bigger PR is reviewed in several requests, each with its own set of files. Lower it (about `12000`) for Groq's free tier |
+| `prbot.quota.requests-per-minute` | – | `12` | Model requests are spaced evenly to stay under this. Default leaves headroom under Gemini's 15 RPM |
+| `prbot.quota.daily-limit` | – | `450` | Model requests per day, counted in the database. When used up, new reviews are recorded as SKIPPED and nothing is posted. Default leaves headroom under Gemini's 500 RPD |
+| `prbot.quota.reset-zone` | – | `America/Los_Angeles` | Time zone in which the day (and the provider's quota) rolls over |
 | `prbot.executor.threads` | – | `2` | Concurrent reviews |
 | `prbot.executor.queue-capacity` | – | `20` | Waiting reviews; beyond this the webhook gets 503 and the review is skipped |
+
+## Per-repo settings: `.prbot.yml`
+
+Put a `.prbot.yml` in the root of a repository. It is read from the pull request's **base branch**, so a PR cannot change its own review rules.
+
+```yaml
+# Files to leave out of the review, on top of lockfiles, generated and vendored files.
+ignore:
+  - docs/          # a directory: everything below it
+  - "*.md"         # no slash: matches at any depth
+  - /build         # leading slash: only at the repo root
+  - src/**/gen/**  # ** crosses directories, * stays inside one
+
+# low:    only high severity findings, at most 5 comments
+# normal: medium and high, at most 10 comments (default)
+# high:   everything, at most 15 comments
+strictness: normal
+```
+
+Unknown keys, a wrong type or invalid YAML make the bot ignore the whole file and use the defaults. The review summary says so. `prbot.max-comments` stays an upper bound.
 
 ## Milestones
 

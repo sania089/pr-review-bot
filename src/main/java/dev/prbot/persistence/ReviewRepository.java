@@ -1,6 +1,5 @@
 package dev.prbot.persistence;
 
-import dev.prbot.llm.LlmResponse;
 import java.util.Optional;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
@@ -43,20 +42,27 @@ public class ReviewRepository {
                 .optional();
     }
 
-    public void markPosted(long id, int comments, LlmResponse usage, long latencyMs) {
+    public void markPosted(
+            long id,
+            int comments,
+            int inputTokens,
+            int outputTokens,
+            long latencyMs,
+            String promptVersion) {
         jdbc.sql(
                         """
                         UPDATE reviews
                            SET status = 'POSTED', comments_posted = :comments,
                                input_tokens = :in, output_tokens = :out, latency_ms = :latency,
-                               completed_at = now()
+                               prompt_version = :prompt, completed_at = now()
                          WHERE id = :id
                         """)
                 .param("id", id)
                 .param("comments", comments)
-                .param("in", usage.inputTokens())
-                .param("out", usage.outputTokens())
+                .param("in", inputTokens)
+                .param("out", outputTokens)
                 .param("latency", latencyMs)
+                .param("prompt", promptVersion)
                 .update();
     }
 

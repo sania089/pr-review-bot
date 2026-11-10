@@ -51,9 +51,11 @@ class GitHubAppTokenProviderTest {
                         base.webhookSecret(),
                         base.maxDiffChars(),
                         base.maxComments(),
+                        base.maxBatchChars(),
                         base.llm(),
                         base.executor(),
-                        base.http());
+                        base.http(),
+                        base.quota());
         RestClient.Builder builder = RestClient.builder();
         server = MockRestServiceServer.bindTo(builder).build();
         now = T0;

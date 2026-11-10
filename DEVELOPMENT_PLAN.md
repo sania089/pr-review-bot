@@ -100,15 +100,15 @@ Free-tier limits change. Confirm them on Day 1 and record the numbers in the not
 - [x] **`TokenProvider` interface.** `PatTokenProvider` (local dev) and `GitHubAppTokenProvider` (RS256 JWT → installation token). _Note: selected with `prbot.github.auth` (`pat`/`app`); JWT is signed with the JDK (`AppJwt`, no library) and accepts PKCS#1 and PKCS#8 PEM keys. `prbot.github-token` became `prbot.github.token`._
 - [x] **Token cache.** Cache installation tokens per installation until about 5 minutes before expiry; read `installation.id` from the webhook payload. _Note: `ConcurrentHashMap.compute` per installation, so concurrent reviews mint one token._
 - [x] **Wire `GitHubClient`.** Take the token per call from the provider. _Note: `fetchDiff` and `postReview` take `installationId`, passed from the webhook through `ReviewService`._
-- [~] **Tests.** Unit-test the JWT claims and cache expiry; manual check on two repos. _Note: unit tests done (`AppJwtTest`, `GitHubAppTokenProviderTest`); the two-repo manual check needs the real App._
+- [x] **Tests.** Unit-test the JWT claims and cache expiry; manual check on two repos. _Note: unit tests done (`AppJwtTest`, `GitHubAppTokenProviderTest`); manual check with the real App on real PRs done by the owner (review comment received)._
 
 ## Day 5 – Review quality and per-repo config
 *Done when: reviews on about 10 real PRs are useful with few false alarms, and repos can tune the bot.*
 
-- [ ] **Prompt pass.** Versioned prompt resource file; bugs, security and correctness only, with severity, no style nits; store the prompt version per review. Review large PRs in per-file batches (free models have smaller context windows).
-- [ ] **`.prbot.yml` support.** Fetch from the PR's base branch; support `ignore` paths and `strictness` (low / normal / high maps to comment cap and minimum severity). Invalid file falls back to defaults and is mentioned in the summary.
+- [x] **Prompt pass.** Versioned prompt resource file; bugs, security and correctness only, with severity, no style nits; store the prompt version per review. Review large PRs in per-file batches (free models have smaller context windows). _Note: prompt in `prompts/review-v1.txt` (`ReviewPrompt.VERSION`), stored in `reviews.prompt_version` (migration V2). `DiffBatcher` groups whole files up to `prbot.max-batch-chars` (24000); one model request per batch, summaries joined, findings merged, most severe first. A single file over the batch size is sent alone, so Groq's 8k TPM can still 413 on it._
+- [x] **`.prbot.yml` support.** Fetch from the PR's base branch; support `ignore` paths and `strictness` (low / normal / high maps to comment cap and minimum severity). Invalid file falls back to defaults and is mentioned in the summary. _Note: `RepoConfig` (SnakeYAML safe constructor, unknown keys are errors, size and pattern limits). Strictness: low = high only, 5 comments; normal = medium+, 10; high = all, 15; capped by `prbot.max-comments`. Behaviour change: `low` severity findings are no longer posted by default. Ignore globs are gitignore-like (see README)._
 - [ ] **Spot-check set.** Run on about 10 PRs (some with seeded bugs), note misses and false positives, adjust the prompt once or twice. A formal eval harness is post-launch.
-- [ ] **Quota guard.** Pace LLM calls under the provider's requests-per-minute limit and stop at a configurable daily request cap; when hit, post nothing and record SKIPPED with the reason.
+- [x] **Quota guard.** Pace LLM calls under the provider's requests-per-minute limit and stop at a configurable daily request cap; when hit, post nothing and record SKIPPED with the reason. _Note: `QuotaGuard` reserves a review's requests up front against a per-day counter in `llm_usage` (survives restarts, resets at midnight Pacific), then spaces calls at `prbot.quota.requests-per-minute` (12). Provider-side retries after a 429 are not counted._
 
 ## Day 6 – Dashboard API and login
 *Done when: the API returns real review history and stats and is not publicly readable.*
@@ -193,3 +193,4 @@ Add dated one-liners here when something differs from the plan (chosen LLM provi
 - 2026-11-05: Day 2 done. 69 tests pass. Retries cover the Day 1 finding of Gemini 503s and hangs (60s read timeout instead of 155s).
 - 2026-11-06: Day 3 done. 75 tests (3 need Docker).
 - 2026-11-03: AI Studio rate limits for `gemini-3.5-flash-lite` (free tier): 15 RPM, 250K TPM, 500 RPD (the 3.6/3.8 Flash models: 5 RPM, 20 RPD, so unusable for volume). Day 5 quota guard defaults: pace at ~12 RPM (headroom under 15) and daily cap ~450 (headroom under 500); both configurable. Limits are per project and the RPD resets at midnight Pacific.
+- 2026-11-10: Day 5 code done (prompt v1, batching, `.prbot.yml`, quota guard); 112 tests (4 need Docker, including the new quota SQL test). Spot-check set is still open and needs real PRs.

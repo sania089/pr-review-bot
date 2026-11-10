@@ -2,9 +2,7 @@ package dev.prbot.persistence;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import dev.prbot.llm.LlmResponse;
-import dev.prbot.review.ReviewResult;
-import java.util.List;
+import java.time.LocalDate;
 import java.util.Map;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.BeforeAll;
@@ -37,7 +35,7 @@ class ReviewRepositoryTest {
 
     @BeforeEach
     void clean() {
-        jdbc.sql("TRUNCATE reviews").update();
+        jdbc.sql("TRUNCATE reviews, llm_usage").update();
     }
 
     private Long enqueue(String sha) {
@@ -61,15 +59,15 @@ class ReviewRepositoryTest {
     void postedReviewStoresUsageAndIsNeverRequeued() {
         long id = enqueue("sha1");
 
-        repository.markPosted(
-                id, 3, new LlmResponse(new ReviewResult("s", List.of()), 100, 20), 1500);
+        repository.markPosted(id, 3, 100, 20, 1500, "v1");
 
         assertThat(row(id))
                 .containsEntry("status", "POSTED")
                 .containsEntry("comments_posted", 3)
                 .containsEntry("input_tokens", 100)
                 .containsEntry("output_tokens", 20)
-                .containsEntry("latency_ms", 1500L);
+                .containsEntry("latency_ms", 1500L)
+                .containsEntry("prompt_version", "v1");
         assertThat(row(id).get("completed_at")).isNotNull();
         assertThat(enqueue("sha1")).isNull();
     }
@@ -88,5 +86,18 @@ class ReviewRepositoryTest {
                 .containsEntry("status", "SKIPPED")
                 .containsEntry("error", "queue full");
         assertThat(enqueue("sha1")).isEqualTo(failed);
+    }
+
+    @Test
+    void dailyQuotaReservationStopsAtTheLimit() {
+        LlmUsageRepository usage = new LlmUsageRepository(jdbc);
+        LocalDate today = LocalDate.of(2026, 11, 10);
+
+        assertThat(usage.tryReserve(today, 3, 5)).isTrue();
+        assertThat(usage.tryReserve(today, 3, 5)).isFalse(); // 6 > 5, nothing is added
+        assertThat(usage.tryReserve(today, 2, 5)).isTrue(); // exactly at the limit
+        assertThat(usage.tryReserve(today, 1, 5)).isFalse();
+        assertThat(usage.tryReserve(today.plusDays(1), 1, 5)).isTrue(); // a new day starts at 0
+        assertThat(usage.tryReserve(today.plusDays(2), 6, 5)).isFalse(); // can never fit
     }
 }

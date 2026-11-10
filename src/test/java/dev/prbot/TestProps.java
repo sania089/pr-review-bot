@@ -24,6 +24,7 @@ public final class TestProps {
                 WEBHOOK_SECRET,
                 60000,
                 15,
+                24000,
                 new Llm(
                         provider,
                         new ProviderConfig("test-gemini-key", "gemini-test"),
@@ -35,7 +36,8 @@ public final class TestProps {
                         Duration.ofSeconds(1),
                         3,
                         Duration.ZERO,
-                        Duration.ZERO));
+                        Duration.ZERO),
+                new BotProperties.Quota(600, 450, "America/Los_Angeles"));
     }
 
     /** Three attempts and no real waiting. */

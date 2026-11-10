@@ -3,8 +3,10 @@ package dev.prbot.github;
 import dev.prbot.http.Retrier;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClient;
 
 @Component
@@ -31,6 +33,41 @@ public class GitHubClient {
                                 .accept(MediaType.valueOf("application/vnd.github.v3.diff"))
                                 .retrieve()
                                 .body(String.class));
+    }
+
+    /**
+     * Reads one file at a ref (the PR's base branch, so a PR cannot change its own review rules).
+     * Empty if the file does not exist; any other error is thrown.
+     */
+    public Optional<String> fetchFile(long installationId, String repo, String path, String ref) {
+        String[] r = split(repo);
+        String token = tokens.tokenFor(installationId);
+        try {
+            return Optional.ofNullable(
+                    retrier.call(
+                            () ->
+                                    http.get()
+                                            .uri(
+                                                    b ->
+                                                            b.path(
+                                                                            "/repos/{owner}/{name}/contents/{path}")
+                                                                    .queryParamIfPresent(
+                                                                            "ref",
+                                                                            Optional.ofNullable(ref)
+                                                                                    .filter(
+                                                                                            s ->
+                                                                                                    !s
+                                                                                                            .isBlank()))
+                                                                    .build(r[0], r[1], path))
+                                            .headers(h -> h.setBearerAuth(token))
+                                            .accept(
+                                                    MediaType.valueOf(
+                                                            "application/vnd.github.raw+json"))
+                                            .retrieve()
+                                            .body(String.class)));
+        } catch (HttpClientErrorException.NotFound e) {
+            return Optional.empty();
+        }
     }
 
     /**
