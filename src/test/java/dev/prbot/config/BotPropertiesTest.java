@@ -22,7 +22,8 @@ class BotPropertiesTest {
         List<String> all =
                 new ArrayList<>(
                         List.of(
-                                "prbot.github-token=t",
+                                "prbot.github.auth=pat",
+                                "prbot.github.token=t",
                                 "prbot.webhook-secret=s",
                                 "prbot.max-diff-chars=1000",
                                 "prbot.max-comments=5",
@@ -65,8 +66,21 @@ class BotPropertiesTest {
 
     @Test
     void failsWithoutGithubToken() {
-        runner.withPropertyValues(props("prbot.github-token="))
+        runner.withPropertyValues(props("prbot.github.token="))
                 .run(ctx -> assertThat(ctx).hasFailed());
+    }
+
+    @Test
+    void appAuthNeedsAppIdAndPrivateKey() {
+        runner.withPropertyValues(props("prbot.github.auth=app", "prbot.github.app-id=1"))
+                .run(ctx -> assertThat(ctx).hasFailed());
+        runner.withPropertyValues(
+                        props(
+                                "prbot.github.auth=app",
+                                "prbot.github.token=",
+                                "prbot.github.app-id=1",
+                                "prbot.github.app-private-key=pem"))
+                .run(ctx -> assertThat(ctx).hasNotFailed());
     }
 
     @Test
@@ -90,7 +104,7 @@ class BotPropertiesTest {
     @Test
     void failureMessageDoesNotContainSecrets() {
         runner.withPropertyValues(
-                        props("prbot.webhook-secret=", "prbot.github-token=super-secret-token"))
+                        props("prbot.webhook-secret=", "prbot.github.token=super-secret-token"))
                 .run(
                         ctx ->
                                 assertThat(ctx.getStartupFailure().toString())

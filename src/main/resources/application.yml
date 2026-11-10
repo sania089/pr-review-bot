@@ -19,7 +19,11 @@ server:
   port: 8080
 
 prbot:
-  github-token: ${GITHUB_TOKEN:}
+  github:
+    auth: ${GITHUB_AUTH:pat} # pat (local dev) or app (GitHub App, works across repos)
+    token: ${GITHUB_TOKEN:}
+    app-id: ${GITHUB_APP_ID:}
+    app-private-key: ${GITHUB_APP_PRIVATE_KEY:} # PEM text; literal \n sequences are accepted
   webhook-secret: ${GITHUB_WEBHOOK_SECRET:}
   max-diff-chars: 60000
   max-comments: 15

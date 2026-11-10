@@ -26,6 +26,7 @@ import org.mockito.ArgumentCaptor;
 class ReviewServiceTest {
 
     private static final long ID = 42;
+    private static final long INST = 7;
     private static final LlmResponse LLM_OK =
             new LlmResponse(new ReviewResult("fine", List.of()), 100, 20);
 
@@ -58,31 +59,31 @@ class ReviewServiceTest {
 
     @Test
     void doesNotCallTheModelWhenEveryFileIsFilteredOut() {
-        when(github.fetchDiff("acme/w", 1))
+        when(github.fetchDiff(INST, "acme/w", 1))
                 .thenReturn(fileDiff("package-lock.json", "x") + fileDiff("app.min.js", "y"));
 
-        service.review(ID, "acme/w", 1, "sha");
+        service.review(ID, INST, "acme/w", 1, "sha");
 
         verify(llm, never()).review(anyString());
-        verify(github, never()).postReview(any(), anyInt(), any(), any(), anyList());
+        verify(github, never()).postReview(anyLong(), any(), anyInt(), any(), any(), anyList());
         verify(repository).markSkipped(eq(ID), anyString());
     }
 
     @Test
     void recordsPostedReviewWithUsage() {
-        when(github.fetchDiff("acme/w", 1)).thenReturn(fileDiff("A.java", "a"));
+        when(github.fetchDiff(INST, "acme/w", 1)).thenReturn(fileDiff("A.java", "a"));
         when(llm.review(anyString())).thenReturn(LLM_OK);
 
-        service.review(ID, "acme/w", 1, "sha");
+        service.review(ID, INST, "acme/w", 1, "sha");
 
         verify(repository).markPosted(eq(ID), eq(0), eq(LLM_OK), anyLong());
     }
 
     @Test
     void recordsFailureWhenTheReviewThrows() {
-        when(github.fetchDiff("acme/w", 1)).thenThrow(new IllegalStateException("boom"));
+        when(github.fetchDiff(INST, "acme/w", 1)).thenThrow(new IllegalStateException("boom"));
 
-        service.reviewAsync(ID, "acme/w", 1, "sha");
+        service.reviewAsync(ID, INST, "acme/w", 1, "sha");
 
         verify(repository).markFailed(ID, "IllegalStateException: boom");
         verify(repository, never()).markPosted(anyLong(), anyInt(), any(), anyLong());
@@ -90,11 +91,11 @@ class ReviewServiceTest {
 
     @Test
     void sendsOnlyRelevantFilesToTheModel() {
-        when(github.fetchDiff("acme/w", 1))
+        when(github.fetchDiff(INST, "acme/w", 1))
                 .thenReturn(fileDiff("A.java", "a") + fileDiff("yarn.lock", "x"));
         when(llm.review(anyString())).thenReturn(LLM_OK);
 
-        service.review(ID, "acme/w", 1, "sha");
+        service.review(ID, INST, "acme/w", 1, "sha");
 
         ArgumentCaptor<String> sent = ArgumentCaptor.forClass(String.class);
         verify(llm).review(sent.capture());
@@ -105,13 +106,14 @@ class ReviewServiceTest {
     void mentionsFilesSkippedForSizeInTheSummary() {
         String small = fileDiff("Small.java", "s");
         String big = fileDiff("Big.java", "b".repeat(70_000));
-        when(github.fetchDiff("acme/w", 1)).thenReturn(small + big);
+        when(github.fetchDiff(INST, "acme/w", 1)).thenReturn(small + big);
         when(llm.review(anyString())).thenReturn(LLM_OK);
 
-        service.review(ID, "acme/w", 1, "sha");
+        service.review(ID, INST, "acme/w", 1, "sha");
 
         ArgumentCaptor<String> summary = ArgumentCaptor.forClass(String.class);
-        verify(github).postReview(eq("acme/w"), eq(1), eq("sha"), summary.capture(), anyList());
+        verify(github)
+                .postReview(eq(INST), eq("acme/w"), eq(1), eq("sha"), summary.capture(), anyList());
         assertThat(summary.getValue()).startsWith("fine").contains("`Big.java`");
     }
 
