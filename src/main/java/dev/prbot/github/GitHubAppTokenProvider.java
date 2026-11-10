@@ -35,6 +35,7 @@ class GitHubAppTokenProvider implements TokenProvider {
     private final PrivateKey key;
     private final Clock clock;
     private final Map<Long, CachedToken> cache = new ConcurrentHashMap<>();
+    private final Map<Long, Object> locks = new ConcurrentHashMap<>(); // one per installation
 
     @Autowired
     GitHubAppTokenProvider(BotProperties props, RestClient.Builder builder, Retrier retrier) {
@@ -56,9 +57,21 @@ class GitHubAppTokenProvider implements TokenProvider {
             throw new IllegalStateException(
                     "The webhook payload has no installation id; is the GitHub App installed?");
         }
-        // compute() is atomic per key, so concurrent reviews never mint duplicate tokens.
-        return cache.compute(installationId, (id, cached) -> isFresh(cached) ? cached : mint(id))
-                .token();
+        CachedToken cached = cache.get(installationId);
+        if (isFresh(cached)) {
+            return cached.token();
+        }
+        // The network call happens under a lock of this installation only, never inside a map
+        // operation, so other installations are not blocked. The re-check means that threads
+        // which waited for the lock reuse the token the first one minted.
+        synchronized (locks.computeIfAbsent(installationId, id -> new Object())) {
+            cached = cache.get(installationId);
+            if (!isFresh(cached)) {
+                cached = mint(installationId);
+                cache.put(installationId, cached);
+            }
+            return cached.token();
+        }
     }
 
     private boolean isFresh(CachedToken cached) {

@@ -121,6 +121,31 @@ class GitHubAppTokenProviderTest {
     }
 
     @Test
+    void concurrentCallsForOneInstallationMintOnlyOneToken() throws Exception {
+        expectToken(1, "tok", T0.plus(Duration.ofHours(1))); // ExpectedCount.once()
+
+        int threads = 8;
+        java.util.concurrent.ExecutorService pool =
+                java.util.concurrent.Executors.newFixedThreadPool(threads);
+        java.util.concurrent.CountDownLatch start = new java.util.concurrent.CountDownLatch(1);
+        java.util.List<java.util.concurrent.Future<String>> results = new java.util.ArrayList<>();
+        for (int i = 0; i < threads; i++) {
+            results.add(
+                    pool.submit(
+                            () -> {
+                                start.await();
+                                return provider.tokenFor(1);
+                            }));
+        }
+        start.countDown();
+        for (java.util.concurrent.Future<String> result : results) {
+            assertThat(result.get()).isEqualTo("tok");
+        }
+        pool.shutdown();
+        server.verify(); // a second mint would have failed the "once" expectation
+    }
+
+    @Test
     void failsClearlyWithoutAnInstallationId() {
         assertThatThrownBy(() -> provider.tokenFor(0))
                 .isInstanceOf(IllegalStateException.class)
