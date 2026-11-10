@@ -8,6 +8,7 @@ import java.time.Duration;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.function.LongSupplier;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 /**
@@ -25,6 +26,7 @@ public class QuotaGuard {
     private final Sleeper sleeper;
     private long nextSlotNanos;
 
+    @Autowired
     public QuotaGuard(BotProperties props, LlmUsageRepository usage) {
         this(
                 props.quota(),
