@@ -1,5 +1,6 @@
 package dev.prbot.api;
 
+import dev.prbot.metrics.ReviewMetrics;
 import dev.prbot.persistence.ReviewRecord;
 import dev.prbot.persistence.ReviewRepository;
 import dev.prbot.persistence.StatsRepository;
@@ -25,16 +26,21 @@ public class ReviewsController {
 
     private final ReviewRepository reviews;
     private final StatsRepository stats;
+    private final ReviewMetrics metrics;
 
-    public ReviewsController(ReviewRepository reviews, StatsRepository stats) {
+    public ReviewsController(
+            ReviewRepository reviews, StatsRepository stats, ReviewMetrics metrics) {
         this.reviews = reviews;
         this.stats = stats;
+        this.metrics = metrics;
     }
 
     public record Page(
             List<ReviewRecord> items, int page, int size, long totalItems, int totalPages) {}
 
-    public record Stats(StatsWindow last7Days, StatsWindow last30Days) {}
+    /** History from the database, plus this instance's counters since it started. */
+    public record Stats(
+            StatsWindow last7Days, StatsWindow last30Days, ReviewMetrics.Snapshot sinceStartup) {}
 
     @GetMapping("/reviews")
     public Page list(
@@ -67,7 +73,7 @@ public class ReviewsController {
 
     @GetMapping("/stats")
     public Stats stats() {
-        return new Stats(stats.window(7), stats.window(30));
+        return new Stats(stats.window(7), stats.window(30), metrics.snapshot());
     }
 
     private static String blankToNull(String value) {

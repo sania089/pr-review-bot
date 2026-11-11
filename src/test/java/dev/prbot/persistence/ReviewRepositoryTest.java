@@ -2,6 +2,8 @@ package dev.prbot.persistence;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import dev.prbot.metrics.ReviewMetrics;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.time.LocalDate;
 import java.util.Map;
 import org.flywaydb.core.Flyway;
@@ -23,6 +25,7 @@ class ReviewRepositoryTest {
 
     private static JdbcClient jdbc;
     private static ReviewRepository repository;
+    private static ReviewMetrics metrics;
 
     @BeforeAll
     static void migrate() {
@@ -30,7 +33,8 @@ class ReviewRepositoryTest {
                 new DriverManagerDataSource(DB.getJdbcUrl(), DB.getUsername(), DB.getPassword());
         Flyway.configure().dataSource(ds).load().migrate();
         jdbc = JdbcClient.create(ds);
-        repository = new ReviewRepository(jdbc);
+        metrics = new ReviewMetrics(new SimpleMeterRegistry());
+        repository = new ReviewRepository(jdbc, metrics);
     }
 
     @BeforeEach
@@ -70,6 +74,8 @@ class ReviewRepositoryTest {
                 .containsEntry("prompt_version", "v1");
         assertThat(row(id).get("completed_at")).isNotNull();
         assertThat(enqueue("sha1")).isNull();
+        assertThat(metrics.snapshot().reviewsByStatus()).containsEntry("POSTED", 1L);
+        assertThat(metrics.snapshot().inputTokens()).isEqualTo(100);
     }
 
     @Test

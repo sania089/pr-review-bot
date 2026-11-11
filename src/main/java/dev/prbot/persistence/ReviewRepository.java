@@ -1,5 +1,6 @@
 package dev.prbot.persistence;
 
+import dev.prbot.metrics.ReviewMetrics;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -12,9 +13,11 @@ public class ReviewRepository {
     private static final int MAX_ERROR_CHARS = 500;
 
     private final JdbcClient jdbc;
+    private final ReviewMetrics metrics;
 
-    public ReviewRepository(JdbcClient jdbc) {
+    public ReviewRepository(JdbcClient jdbc, ReviewMetrics metrics) {
         this.jdbc = jdbc;
+        this.metrics = metrics;
     }
 
     /**
@@ -65,6 +68,8 @@ public class ReviewRepository {
                 .param("latency", latencyMs)
                 .param("prompt", promptVersion)
                 .update();
+        metrics.reviewFinished("POSTED");
+        metrics.llmUsed(inputTokens, outputTokens, latencyMs);
     }
 
     public void markFailed(long id, String error) {
@@ -124,5 +129,6 @@ public class ReviewRepository {
                 .param("status", status)
                 .param("error", shortMessage)
                 .update();
+        metrics.reviewFinished(status);
     }
 }

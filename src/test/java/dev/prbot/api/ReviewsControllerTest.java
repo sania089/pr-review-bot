@@ -10,10 +10,12 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import dev.prbot.metrics.ReviewMetrics;
 import dev.prbot.persistence.ReviewRecord;
 import dev.prbot.persistence.ReviewRepository;
 import dev.prbot.persistence.StatsRepository;
 import dev.prbot.persistence.StatsWindow;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -26,13 +28,17 @@ class ReviewsControllerTest {
 
     private ReviewRepository reviews;
     private StatsRepository stats;
+    private ReviewMetrics metrics;
     private MockMvc mvc;
 
     @BeforeEach
     void setUp() {
         reviews = mock(ReviewRepository.class);
         stats = mock(StatsRepository.class);
-        mvc = MockMvcBuilders.standaloneSetup(new ReviewsController(reviews, stats)).build();
+        metrics = new ReviewMetrics(new SimpleMeterRegistry());
+        mvc =
+                MockMvcBuilders.standaloneSetup(new ReviewsController(reviews, stats, metrics))
+                        .build();
     }
 
     private static ReviewRecord review(long id) {
@@ -124,11 +130,16 @@ class ReviewsControllerTest {
                 .thenReturn(new StatsWindow(7, 10, 8, 1, 1, 24, 1 / 9.0, 900.0, 2500.0, 5000, 800));
         when(stats.window(30)).thenReturn(new StatsWindow(30, 0, 0, 0, 0, 0, 0, null, null, 0, 0));
 
+        metrics.reviewFinished("POSTED");
+        metrics.llmUsed(10, 2, 500);
+
         mvc.perform(get("/api/stats"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.last7Days.reviews").value(10))
                 .andExpect(jsonPath("$.last7Days.p95LatencyMs").value(2500.0))
                 .andExpect(jsonPath("$.last30Days.p50LatencyMs").doesNotExist())
-                .andExpect(jsonPath("$.last30Days.failureRate").value(0.0));
+                .andExpect(jsonPath("$.last30Days.failureRate").value(0.0))
+                .andExpect(jsonPath("$.sinceStartup.reviewsByStatus.POSTED").value(1))
+                .andExpect(jsonPath("$.sinceStartup.inputTokens").value(10));
     }
 }

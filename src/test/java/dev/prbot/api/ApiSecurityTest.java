@@ -13,6 +13,7 @@ import dev.prbot.TestProps;
 import dev.prbot.config.BotProperties;
 import dev.prbot.config.BotProperties.Provider;
 import dev.prbot.config.SecurityConfig;
+import dev.prbot.metrics.ReviewMetrics;
 import dev.prbot.persistence.ReviewRepository;
 import dev.prbot.persistence.StatsRepository;
 import dev.prbot.persistence.StatsWindow;
@@ -46,6 +47,7 @@ class ApiSecurityTest {
     @Autowired MockMvc mvc;
     @MockBean ReviewRepository reviews;
     @MockBean StatsRepository stats;
+    @MockBean ReviewMetrics metrics;
 
     private static String login(String user, String password) {
         return "{\"username\":\"" + user + "\",\"password\":\"" + password + "\"}";

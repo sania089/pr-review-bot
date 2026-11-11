@@ -62,6 +62,9 @@ logging:
     level: "%5p [%X{requestId:-}]"
 
 management:
+  endpoint:
+    health:
+      show-details: when-authorized # the public pinger sees only UP/DOWN; a logged-in admin sees review counters
   health:
     db:
       # The uptime pinger hits /actuator/health every 5 minutes; checking the DB there would keep Neon awake.
