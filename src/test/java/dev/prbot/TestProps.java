@@ -15,6 +15,7 @@ import java.time.Duration;
 public final class TestProps {
 
     public static final String WEBHOOK_SECRET = "test-webhook-secret";
+    public static final String ADMIN_PASSWORD = "test-admin-password";
 
     private TestProps() {}
 
@@ -37,7 +38,8 @@ public final class TestProps {
                         3,
                         Duration.ZERO,
                         Duration.ZERO),
-                new BotProperties.Quota(600, 450, "America/Los_Angeles"));
+                new BotProperties.Quota(600, 450, "America/Los_Angeles"),
+                new BotProperties.Admin("admin", ADMIN_PASSWORD));
     }
 
     /** Three attempts and no real waiting. */

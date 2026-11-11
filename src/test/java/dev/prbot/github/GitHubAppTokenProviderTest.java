@@ -55,7 +55,8 @@ class GitHubAppTokenProviderTest {
                         base.llm(),
                         base.executor(),
                         base.http(),
-                        base.quota());
+                        base.quota(),
+                        base.admin());
         RestClient.Builder builder = RestClient.builder();
         server = MockRestServiceServer.bindTo(builder).build();
         now = T0;
