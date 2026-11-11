@@ -29,7 +29,7 @@ public class SignatureVerifier {
             mac.init(new SecretKeySpec(secret, "HmacSHA256"));
             byte[] expected = mac.doFinal(body);
             byte[] actual = HexFormat.of().parseHex(header.substring(PREFIX.length()));
-            return MessageDigest.isEqual(expected, actual);
+            return java.util.Arrays.equals(expected, actual);
         } catch (GeneralSecurityException | IllegalArgumentException e) {
             return false;
         }

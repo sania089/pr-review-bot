@@ -27,7 +27,6 @@ public final class DiffTruncator {
         for (FileDiff file : files) {
             if (used + file.text().length() <= maxChars) {
                 kept.add(file);
-                used += file.text().length();
             } else {
                 skipped.add(file.path());
             }

@@ -14,7 +14,7 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 @Configuration
 public class AsyncConfig {
 
-    public static String REVIEW_EXECUTOR = "reviewExecutor";
+    public static final String REVIEW_EXECUTOR = "reviewExecutor";
 
     @Bean(REVIEW_EXECUTOR)
     ThreadPoolTaskExecutor reviewExecutor(BotProperties props) {
