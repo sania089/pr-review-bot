@@ -18,6 +18,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestClientResponseException;
 
 @Service
 public class ReviewService {
@@ -49,9 +50,23 @@ public class ReviewService {
         try {
             review(id, installationId, repo, number, headSha, baseRef);
         } catch (Exception e) {
-            log.error("Review failed for {}#{}", repo, number, e);
-            reviews.markFailed(id, e.getClass().getSimpleName() + ": " + e.getMessage());
+            String reason = describeFailure(e);
+            if (e instanceof RestClientResponseException) {
+                // The message holds the upstream response body, which can echo reviewed code.
+                log.error("Review failed for {}#{}: {}", repo, number, reason);
+            } else {
+                log.error("Review failed for {}#{}", repo, number, e);
+            }
+            reviews.markFailed(id, reason);
         }
+    }
+
+    /** Stored with the review, so an upstream error body (which may quote code) is left out. */
+    static String describeFailure(Exception e) {
+        if (e instanceof RestClientResponseException r) {
+            return "HTTP " + r.getStatusCode().value() + " from the GitHub or model API";
+        }
+        return e.getClass().getSimpleName() + ": " + e.getMessage();
     }
 
     void review(

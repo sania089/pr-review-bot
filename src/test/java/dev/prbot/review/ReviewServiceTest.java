@@ -257,4 +257,21 @@ class ReviewServiceTest {
                 .doesNotContain("`f10`")
                 .contains("and 3 more");
     }
+
+    @Test
+    void failureReasonOmitsTheUpstreamResponseBody() {
+        var error =
+                org.springframework.web.client.HttpServerErrorException.create(
+                        org.springframework.http.HttpStatus.BAD_GATEWAY,
+                        "Bad Gateway",
+                        new org.springframework.http.HttpHeaders(),
+                        "echoed source code".getBytes(),
+                        null);
+
+        assertThat(ReviewService.describeFailure(error))
+                .contains("HTTP 502")
+                .doesNotContain("echoed source code");
+        assertThat(ReviewService.describeFailure(new IllegalStateException("boom")))
+                .isEqualTo("IllegalStateException: boom");
+    }
 }

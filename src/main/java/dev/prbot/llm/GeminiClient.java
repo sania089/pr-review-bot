@@ -6,6 +6,7 @@ import dev.prbot.config.BotProperties;
 import dev.prbot.http.Retrier;
 import java.util.List;
 import java.util.Map;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
@@ -16,18 +17,24 @@ import org.springframework.web.client.RestClient;
 @ConditionalOnProperty(prefix = "prbot.llm", name = "provider", havingValue = "gemini")
 public class GeminiClient implements LlmClient {
 
+    static final String DEFAULT_URL = "https://generativelanguage.googleapis.com";
+
     private final RestClient http;
     private final String model;
     private final ObjectMapper mapper;
     private final Retrier retrier;
 
     public GeminiClient(
-            BotProperties props, ObjectMapper mapper, RestClient.Builder builder, Retrier retrier) {
+            BotProperties props,
+            ObjectMapper mapper,
+            RestClient.Builder builder,
+            Retrier retrier,
+            @Value("${prbot.llm.gemini.base-url:" + DEFAULT_URL + "}") String baseUrl) {
         this.model = props.llm().gemini().model();
         this.mapper = mapper;
         this.retrier = retrier;
         this.http =
-                builder.baseUrl("https://generativelanguage.googleapis.com")
+                builder.baseUrl(baseUrl)
                         .defaultHeader("x-goog-api-key", props.llm().gemini().apiKey())
                         .build();
     }

@@ -74,7 +74,9 @@ class GitHubAppTokenProviderTest {
                         return now;
                     }
                 };
-        provider = new GitHubAppTokenProvider(props, builder, TestProps.retrier(), clock);
+        provider =
+                new GitHubAppTokenProvider(
+                        props, builder, TestProps.retrier(), clock, GitHubHttp.DEFAULT_URL);
     }
 
     private void expectToken(long installation, String token, Instant expiresAt) {

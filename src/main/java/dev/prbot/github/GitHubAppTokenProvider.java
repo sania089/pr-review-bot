@@ -10,6 +10,7 @@ import java.time.Instant;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
@@ -38,13 +39,21 @@ class GitHubAppTokenProvider implements TokenProvider {
     private final Map<Long, Object> locks = new ConcurrentHashMap<>(); // one per installation
 
     @Autowired
-    GitHubAppTokenProvider(BotProperties props, RestClient.Builder builder, Retrier retrier) {
-        this(props, builder, retrier, Clock.systemUTC());
+    GitHubAppTokenProvider(
+            BotProperties props,
+            RestClient.Builder builder,
+            Retrier retrier,
+            @Value("${prbot.github.api-url:" + GitHubHttp.DEFAULT_URL + "}") String apiUrl) {
+        this(props, builder, retrier, Clock.systemUTC(), apiUrl);
     }
 
     GitHubAppTokenProvider(
-            BotProperties props, RestClient.Builder builder, Retrier retrier, Clock clock) {
-        this.http = GitHubHttp.client(builder);
+            BotProperties props,
+            RestClient.Builder builder,
+            Retrier retrier,
+            Clock clock,
+            String apiUrl) {
+        this.http = GitHubHttp.client(builder, apiUrl);
         this.retrier = retrier;
         this.appId = props.github().appId();
         this.key = AppJwt.parsePrivateKey(props.github().appPrivateKey()); // fail fast at startup

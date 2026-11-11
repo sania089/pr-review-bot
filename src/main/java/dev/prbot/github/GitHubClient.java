@@ -4,6 +4,7 @@ import dev.prbot.http.Retrier;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.HttpClientErrorException;
@@ -16,10 +17,14 @@ public class GitHubClient {
     private final Retrier retrier;
     private final TokenProvider tokens;
 
-    public GitHubClient(TokenProvider tokens, RestClient.Builder builder, Retrier retrier) {
+    public GitHubClient(
+            TokenProvider tokens,
+            RestClient.Builder builder,
+            Retrier retrier,
+            @Value("${prbot.github.api-url:" + GitHubHttp.DEFAULT_URL + "}") String apiUrl) {
         this.tokens = tokens;
         this.retrier = retrier;
-        this.http = GitHubHttp.client(builder);
+        this.http = GitHubHttp.client(builder, apiUrl);
     }
 
     public String fetchDiff(long installationId, String repo, int number) {

@@ -20,6 +20,7 @@ import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 import org.springframework.security.web.csrf.CsrfToken;
 import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
+import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 /**
@@ -29,6 +30,15 @@ import org.springframework.web.filter.OncePerRequestFilter;
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
+
+    /**
+     * The React app is a bundle of own scripts and styles, so nothing external or inline is
+     * allowed. Images may be inline data URIs.
+     */
+    static final String CSP =
+            "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; "
+                    + "connect-src 'self'; object-src 'none'; base-uri 'self'; "
+                    + "form-action 'self'; frame-ancestors 'none'";
 
     @Bean
     SecurityContextRepository securityContextRepository() {
@@ -68,6 +78,15 @@ public class SecurityConfig {
                                         .logoutSuccessHandler(
                                                 new HttpStatusReturningLogoutSuccessHandler(
                                                         HttpStatus.NO_CONTENT)))
+                .headers(
+                        h ->
+                                h.contentSecurityPolicy(c -> c.policyDirectives(CSP))
+                                        .referrerPolicy(
+                                                r ->
+                                                        r.policy(
+                                                                ReferrerPolicyHeaderWriter
+                                                                        .ReferrerPolicy
+                                                                        .NO_REFERRER)))
                 .formLogin(AbstractHttpConfigurer::disable)
                 .httpBasic(AbstractHttpConfigurer::disable);
         return http.build();

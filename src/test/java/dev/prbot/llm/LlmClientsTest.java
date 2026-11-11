@@ -50,7 +50,11 @@ class LlmClientsTest {
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
         GeminiClient client =
                 new GeminiClient(
-                        TestProps.with(Provider.GEMINI), MAPPER, builder, TestProps.retrier());
+                        TestProps.with(Provider.GEMINI),
+                        MAPPER,
+                        builder,
+                        TestProps.retrier(),
+                        GeminiClient.DEFAULT_URL);
 
         String body =
                 MAPPER.writeValueAsString(
@@ -104,7 +108,11 @@ class LlmClientsTest {
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
         GeminiClient client =
                 new GeminiClient(
-                        TestProps.with(Provider.GEMINI), MAPPER, builder, TestProps.retrier());
+                        TestProps.with(Provider.GEMINI),
+                        MAPPER,
+                        builder,
+                        TestProps.retrier(),
+                        GeminiClient.DEFAULT_URL);
         server.expect(
                         requestTo(
                                 "https://generativelanguage.googleapis.com/v1beta/models/gemini-test:generateContent"))

@@ -9,6 +9,7 @@ import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 /** The prompt and output schema shared by every provider. */
 final class ReviewPrompt {
@@ -79,8 +80,16 @@ final class ReviewPrompt {
 
     private ReviewPrompt() {}
 
+    private static final Pattern CLOSING_TAG =
+            Pattern.compile("</\\s*diff\\s*>", Pattern.CASE_INSENSITIVE);
+
+    /**
+     * The diff is untrusted. A literal closing tag inside it could end the data block early and
+     * make what follows look like instructions, so it is defused before wrapping.
+     */
     static String userMessage(String annotatedDiff) {
-        return "<diff>\n" + annotatedDiff + "\n</diff>";
+        String safe = CLOSING_TAG.matcher(annotatedDiff).replaceAll("<\\\\/diff>");
+        return "<diff>\n" + safe + "\n</diff>";
     }
 
     static ReviewResult parse(ObjectMapper mapper, String json) {

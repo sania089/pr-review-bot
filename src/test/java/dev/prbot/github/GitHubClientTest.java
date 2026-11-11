@@ -32,7 +32,12 @@ class GitHubClientTest {
     void setUp() {
         RestClient.Builder builder = RestClient.builder();
         server = MockRestServiceServer.bindTo(builder).build();
-        client = new GitHubClient(id -> "test-github-token", builder, TestProps.retrier());
+        client =
+                new GitHubClient(
+                        id -> "test-github-token",
+                        builder,
+                        TestProps.retrier(),
+                        GitHubHttp.DEFAULT_URL);
     }
 
     @Test
