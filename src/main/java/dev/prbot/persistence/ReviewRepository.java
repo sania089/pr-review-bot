@@ -1,5 +1,6 @@
 package dev.prbot.persistence;
 
+import java.util.List;
 import java.util.Optional;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
@@ -72,6 +73,44 @@ public class ReviewRepository {
 
     public void markSkipped(long id, String reason) {
         finish(id, "SKIPPED", reason);
+    }
+
+    /** Newest first. A null {@code repo} or {@code status} means no filter on that column. */
+    public List<ReviewRecord> findPage(String repo, String status, int limit, int offset) {
+        return jdbc.sql(
+                        """
+                        SELECT * FROM reviews
+                         WHERE (CAST(:repo AS TEXT) IS NULL OR repo = :repo)
+                           AND (CAST(:status AS TEXT) IS NULL OR status = :status)
+                         ORDER BY created_at DESC, id DESC
+                         LIMIT :limit OFFSET :offset
+                        """)
+                .param("repo", repo)
+                .param("status", status)
+                .param("limit", limit)
+                .param("offset", offset)
+                .query(ReviewRecord.class)
+                .list();
+    }
+
+    public long count(String repo, String status) {
+        return jdbc.sql(
+                        """
+                        SELECT count(*) FROM reviews
+                         WHERE (CAST(:repo AS TEXT) IS NULL OR repo = :repo)
+                           AND (CAST(:status AS TEXT) IS NULL OR status = :status)
+                        """)
+                .param("repo", repo)
+                .param("status", status)
+                .query(Long.class)
+                .single();
+    }
+
+    public Optional<ReviewRecord> findById(long id) {
+        return jdbc.sql("SELECT * FROM reviews WHERE id = :id")
+                .param("id", id)
+                .query(ReviewRecord.class)
+                .optional();
     }
 
     private void finish(long id, String status, String message) {
