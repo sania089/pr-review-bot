@@ -146,7 +146,7 @@ Free-tier limits change. Confirm them on Day 1 and record the numbers in the not
 ## Day 10 – Containerise and deploy on free tiers
 *Done when: the production instance reviews a real PR through the real GitHub App.*
 
-- [ ] **Dockerfile.** Three stages: Node builds the React app, Maven builds the JAR with the build output in `static/`, slim JRE image runs as non-root. `docker-compose.yml` for local app + Postgres.
+- [ ] **Dockerfile.** Three stages: Node builds the React app, Maven builds the JAR with the build output in `static/`, slim JRE image runs as non-root. `docker-compose.yml` for local app + Postgres. _Note: files written (`Dockerfile`, `.dockerignore`, `docker-compose.yml` app profile, `render.yaml`, `SpaForwardController` for deep links, `server.port` reads `PORT`); `mvn verify` passes (140 tests). Not ticked until the image has been built and run on a machine with Docker._
 - [ ] **Deploy.** Render free web service from the Dockerfile, connected to Neon. Secrets in Render (App private key, webhook secret, LLM API key, admin password); Flyway runs on startup.
 - [ ] **Point the GitHub App** at the Render webhook URL; install on a test repo and one real repo you own.
 - [ ] **Keep awake and watched.** UptimeRobot checks `/actuator/health` every 5 minutes (prevents sleep, emails on downtime). Render auto-deploy from `main`, only after CI passes.
