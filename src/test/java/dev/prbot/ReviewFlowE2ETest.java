@@ -329,12 +329,11 @@ class ReviewFlowE2ETest {
             assertThat(send(pr, "sha-burst-" + pr).getStatusCode()).isEqualTo(HttpStatus.ACCEPTED);
         }
         await().atMost(Duration.ofSeconds(60))
-                .until(
-                        () ->
-                                jdbc.sql("SELECT count(*) FROM reviews WHERE status = 'POSTED'")
-                                                .query(Long.class)
-                                                .single()
-                                        == 20L);
+                .until(() ->
+                        jdbc.sql("SELECT count(*) FROM reviews WHERE status = 'POSTED'")
+                                        .query(Long.class)
+                                        .single()
+                                == 20L);
 
         List<Long> times =
                 geminiCalls().stream().map(r -> r.getLoggedDate().getTime()).sorted().toList();
@@ -415,12 +414,12 @@ class ReviewFlowE2ETest {
 
     private static String payload(int pr, String sha) {
         return """
-                {"action":"opened",
-                 "pull_request":{"number":%d,"draft":false,"user":{"login":"dev","type":"User"},
-                                 "head":{"sha":"%s"},"base":{"ref":"main"}},
-                 "repository":{"full_name":"%s"},
-                 "installation":{"id":42}}
-                """
+        {"action":"opened",
+         "pull_request":{"number":%d,"draft":false,"user":{"login":"dev","type":"User"},
+                         "head":{"sha":"%s"},"base":{"ref":"main"}},
+         "repository":{"full_name":"%s"},
+         "installation":{"id":42}}
+        """
                 .formatted(pr, sha, REPO);
     }
 

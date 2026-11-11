@@ -90,15 +90,12 @@ class GitHubAppTokenProvider implements TokenProvider {
     private CachedToken mint(long installationId) {
         String jwt = AppJwt.create(appId, key, clock.instant());
         TokenResponse response =
-                retrier.call(
-                        () ->
-                                http.post()
-                                        .uri(
-                                                "/app/installations/{id}/access_tokens",
-                                                installationId)
-                                        .headers(h -> h.setBearerAuth(jwt))
-                                        .retrieve()
-                                        .body(TokenResponse.class));
+                retrier.call(() ->
+                        http.post()
+                                .uri("/app/installations/{id}/access_tokens", installationId)
+                                .headers(h -> h.setBearerAuth(jwt))
+                                .retrieve()
+                                .body(TokenResponse.class));
         return new CachedToken(response.token(), Instant.parse(response.expiresAt()));
     }
 }

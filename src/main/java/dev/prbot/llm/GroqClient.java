@@ -64,14 +64,13 @@ public class GroqClient implements LlmClient {
                                         ReviewPrompt.SCHEMA)));
 
         JsonNode response =
-                retrier.call(
-                        () ->
-                                http.post()
-                                        .uri("/chat/completions")
-                                        .contentType(MediaType.APPLICATION_JSON)
-                                        .body(request)
-                                        .retrieve()
-                                        .body(JsonNode.class));
+                retrier.call(() ->
+                        http.post()
+                                .uri("/chat/completions")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .body(request)
+                                .retrieve()
+                                .body(JsonNode.class));
 
         JsonNode choice = response.path("choices").path(0);
         String content = choice.path("message").path("content").asText("");

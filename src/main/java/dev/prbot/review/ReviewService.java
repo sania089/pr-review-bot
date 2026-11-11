@@ -151,12 +151,11 @@ public class ReviewService {
                                                 (Finding f) -> RepoConfig.rank(f.severity()))
                                         .reversed())
                         .limit(cap)
-                        .map(
-                                f ->
-                                        new InlineComment(
-                                                f.path(),
-                                                f.line(),
-                                                "**[" + f.severity() + "]** " + f.body()))
+                        .map(f ->
+                                new InlineComment(
+                                        f.path(),
+                                        f.line(),
+                                        "**[" + f.severity() + "]** " + f.body()))
                         .toList();
         log.info(
                 "{}#{}: {} findings, {} outside the diff, {} posted (strictness {})",

@@ -30,14 +30,13 @@ public class GitHubClient {
     public String fetchDiff(long installationId, String repo, int number) {
         String[] r = split(repo);
         String token = tokens.tokenFor(installationId);
-        return retrier.call(
-                () ->
-                        http.get()
-                                .uri("/repos/{owner}/{name}/pulls/{n}", r[0], r[1], number)
-                                .headers(h -> h.setBearerAuth(token))
-                                .accept(MediaType.valueOf("application/vnd.github.v3.diff"))
-                                .retrieve()
-                                .body(String.class));
+        return retrier.call(() ->
+                http.get()
+                        .uri("/repos/{owner}/{name}/pulls/{n}", r[0], r[1], number)
+                        .headers(h -> h.setBearerAuth(token))
+                        .accept(MediaType.valueOf("application/vnd.github.v3.diff"))
+                        .retrieve()
+                        .body(String.class));
     }
 
     /**
@@ -49,27 +48,19 @@ public class GitHubClient {
         String token = tokens.tokenFor(installationId);
         try {
             return Optional.ofNullable(
-                    retrier.call(
-                            () ->
-                                    http.get()
-                                            .uri(
-                                                    b ->
-                                                            b.path(
-                                                                            "/repos/{owner}/{name}/contents/{path}")
-                                                                    .queryParamIfPresent(
-                                                                            "ref",
-                                                                            Optional.ofNullable(ref)
-                                                                                    .filter(
-                                                                                            s ->
-                                                                                                    !s
-                                                                                                            .isBlank()))
-                                                                    .build(r[0], r[1], path))
-                                            .headers(h -> h.setBearerAuth(token))
-                                            .accept(
-                                                    MediaType.valueOf(
-                                                            "application/vnd.github.raw+json"))
-                                            .retrieve()
-                                            .body(String.class)));
+                    retrier.call(() ->
+                            http.get()
+                                    .uri(b ->
+                                            b.path("/repos/{owner}/{name}/contents/{path}")
+                                                    .queryParamIfPresent(
+                                                            "ref",
+                                                            Optional.ofNullable(ref)
+                                                                    .filter(s -> !s.isBlank()))
+                                                    .build(r[0], r[1], path))
+                                    .headers(h -> h.setBearerAuth(token))
+                                    .accept(MediaType.valueOf("application/vnd.github.raw+json"))
+                                    .retrieve()
+                                    .body(String.class)));
         } catch (HttpClientErrorException.NotFound e) {
             return Optional.empty();
         }
@@ -98,13 +89,12 @@ public class GitHubClient {
             List<InlineComment> comments) {
         List<Map<String, Object>> inline =
                 comments.stream()
-                        .<Map<String, Object>>map(
-                                c ->
-                                        Map.of(
-                                                "path", c.path(),
-                                                "line", c.line(),
-                                                "side", "RIGHT",
-                                                "body", c.body()))
+                        .<Map<String, Object>>map(c ->
+                                Map.of(
+                                        "path", c.path(),
+                                        "line", c.line(),
+                                        "side", "RIGHT",
+                                        "body", c.body()))
                         .toList();
 
         String[] r = split(repo);
@@ -115,14 +105,13 @@ public class GitHubClient {
                         "body", summary,
                         "event", "COMMENT",
                         "comments", inline);
-        retrier.run(
-                () ->
-                        http.post()
-                                .uri("/repos/{owner}/{name}/pulls/{n}/reviews", r[0], r[1], number)
-                                .headers(h -> h.setBearerAuth(token))
-                                .contentType(MediaType.APPLICATION_JSON)
-                                .body(body)
-                                .retrieve()
-                                .toBodilessEntity());
+        retrier.run(() ->
+                http.post()
+                        .uri("/repos/{owner}/{name}/pulls/{n}/reviews", r[0], r[1], number)
+                        .headers(h -> h.setBearerAuth(token))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body(body)
+                        .retrieve()
+                        .toBodilessEntity());
     }
 }

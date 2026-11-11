@@ -67,11 +67,10 @@ public final class Retrier {
     }
 
     public void run(Runnable action) {
-        call(
-                () -> {
-                    action.run();
-                    return null;
-                });
+        call(() -> {
+            action.run();
+            return null;
+        });
     }
 
     static boolean isRetryable(RuntimeException e) {

@@ -134,11 +134,10 @@ class GitHubAppTokenProviderTest {
         java.util.List<java.util.concurrent.Future<String>> results = new java.util.ArrayList<>();
         for (int i = 0; i < threads; i++) {
             results.add(
-                    pool.submit(
-                            () -> {
-                                start.await();
-                                return provider.tokenFor(1);
-                            }));
+                    pool.submit(() -> {
+                        start.await();
+                        return provider.tokenFor(1);
+                    }));
         }
         start.countDown();
         for (java.util.concurrent.Future<String> result : results) {

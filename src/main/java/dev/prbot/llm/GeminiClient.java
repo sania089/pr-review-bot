@@ -66,14 +66,13 @@ public class GeminiClient implements LlmClient {
                                         0.2));
 
         JsonNode response =
-                retrier.call(
-                        () ->
-                                http.post()
-                                        .uri("/v1beta/models/{model}:generateContent", model)
-                                        .contentType(MediaType.APPLICATION_JSON)
-                                        .body(request)
-                                        .retrieve()
-                                        .body(JsonNode.class));
+                retrier.call(() ->
+                        http.post()
+                                .uri("/v1beta/models/{model}:generateContent", model)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .body(request)
+                                .retrieve()
+                                .body(JsonNode.class));
 
         StringBuilder text = new StringBuilder();
         for (JsonNode part : response.path("candidates").path(0).path("content").path("parts")) {

@@ -31,24 +31,23 @@ public class StatsRepository {
                          WHERE created_at >= now() - make_interval(days => :days)
                         """)
                 .param("days", days)
-                .query(
-                        (rs, i) -> {
-                            long posted = rs.getLong("posted");
-                            long failed = rs.getLong("failed");
-                            long finished = posted + failed;
-                            return new StatsWindow(
-                                    days,
-                                    rs.getLong("reviews"),
-                                    posted,
-                                    failed,
-                                    rs.getLong("skipped"),
-                                    rs.getLong("comments_posted"),
-                                    finished == 0 ? 0.0 : (double) failed / finished,
-                                    nullableDouble(rs.getObject("p50")),
-                                    nullableDouble(rs.getObject("p95")),
-                                    rs.getLong("input_tokens"),
-                                    rs.getLong("output_tokens"));
-                        })
+                .query((rs, i) -> {
+                    long posted = rs.getLong("posted");
+                    long failed = rs.getLong("failed");
+                    long finished = posted + failed;
+                    return new StatsWindow(
+                            days,
+                            rs.getLong("reviews"),
+                            posted,
+                            failed,
+                            rs.getLong("skipped"),
+                            rs.getLong("comments_posted"),
+                            finished == 0 ? 0.0 : (double) failed / finished,
+                            nullableDouble(rs.getObject("p50")),
+                            nullableDouble(rs.getObject("p95")),
+                            rs.getLong("input_tokens"),
+                            rs.getLong("output_tokens"));
+                })
                 .single();
     }
 

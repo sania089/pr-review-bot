@@ -36,12 +36,11 @@ class LlmClientsTest {
         assertThat(result.summary()).isEqualTo("Looks risky.");
         assertThat(result.findings())
                 .singleElement()
-                .satisfies(
-                        f -> {
-                            assertThat(f.path()).isEqualTo("A.java");
-                            assertThat(f.line()).isEqualTo(3);
-                            assertThat(f.severity()).isEqualTo("high");
-                        });
+                .satisfies(f -> {
+                    assertThat(f.path()).isEqualTo("A.java");
+                    assertThat(f.line()).isEqualTo(3);
+                    assertThat(f.severity()).isEqualTo("high");
+                });
     }
 
     @Test

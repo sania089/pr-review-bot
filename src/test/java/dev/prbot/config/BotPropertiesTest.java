@@ -53,25 +53,23 @@ class BotPropertiesTest {
         runner.withPropertyValues(props("prbot.admin.password=short"))
                 .run(ctx -> assertThat(ctx).hasFailed());
         runner.withPropertyValues(props())
-                .run(
-                        ctx -> {
-                            BotProperties.Admin admin = ctx.getBean(BotProperties.class).admin();
-                            assertThat(admin.username()).isEqualTo("admin");
-                            assertThat(admin.toString()).doesNotContain("a-long-test-password");
-                        });
+                .run(ctx -> {
+                    BotProperties.Admin admin = ctx.getBean(BotProperties.class).admin();
+                    assertThat(admin.username()).isEqualTo("admin");
+                    assertThat(admin.toString()).doesNotContain("a-long-test-password");
+                });
     }
 
     @Test
     void httpSettingsHaveSafeDefaultsAndCanBeOverridden() {
         runner.withPropertyValues(props("prbot.http.max-attempts=5"))
-                .run(
-                        ctx -> {
-                            BotProperties.Http http = ctx.getBean(BotProperties.class).http();
-                            assertThat(http.maxAttempts()).isEqualTo(5);
-                            assertThat(http.connectTimeout()).hasSeconds(10);
-                            assertThat(http.readTimeout()).hasSeconds(60);
-                            assertThat(http.retryMaxDelay()).hasSeconds(30);
-                        });
+                .run(ctx -> {
+                    BotProperties.Http http = ctx.getBean(BotProperties.class).http();
+                    assertThat(http.maxAttempts()).isEqualTo(5);
+                    assertThat(http.connectTimeout()).hasSeconds(10);
+                    assertThat(http.readTimeout()).hasSeconds(60);
+                    assertThat(http.retryMaxDelay()).hasSeconds(30);
+                });
     }
 
     @Test
@@ -102,13 +100,11 @@ class BotPropertiesTest {
     @Test
     void failsWhenSelectedProviderHasNoKey() {
         runner.withPropertyValues(props("prbot.llm.provider=groq"))
-                .run(
-                        ctx -> {
-                            assertThat(ctx).hasFailed();
-                            assertThat(ctx.getStartupFailure())
-                                    .hasStackTraceContaining(
-                                            "API key of the selected prbot.llm.provider");
-                        });
+                .run(ctx -> {
+                    assertThat(ctx).hasFailed();
+                    assertThat(ctx.getStartupFailure())
+                            .hasStackTraceContaining("API key of the selected prbot.llm.provider");
+                });
     }
 
     @Test
@@ -121,9 +117,8 @@ class BotPropertiesTest {
     void failureMessageDoesNotContainSecrets() {
         runner.withPropertyValues(
                         props("prbot.webhook-secret=", "prbot.github.token=super-secret-token"))
-                .run(
-                        ctx ->
-                                assertThat(ctx.getStartupFailure().toString())
-                                        .doesNotContain("super-secret-token"));
+                .run(ctx ->
+                        assertThat(ctx.getStartupFailure().toString())
+                                .doesNotContain("super-secret-token"));
     }
 }

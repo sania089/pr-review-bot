@@ -48,45 +48,36 @@ public class SecurityConfig {
     @Bean
     SecurityFilterChain securityFilterChain(HttpSecurity http, SecurityContextRepository contexts)
             throws Exception {
-        http.csrf(
-                        csrf ->
-                                csrf.csrfTokenRepository(
-                                                CookieCsrfTokenRepository.withHttpOnlyFalse())
-                                        .csrfTokenRequestHandler(
-                                                new CsrfTokenRequestAttributeHandler())
-                                        // The webhook is signed with HMAC; login has no session
-                                        // yet.
-                                        .ignoringRequestMatchers("/webhook/**", "/api/login"))
+        http.csrf(csrf ->
+                        csrf.csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
+                                .csrfTokenRequestHandler(new CsrfTokenRequestAttributeHandler())
+                                // The webhook is signed with HMAC; login has no session
+                                // yet.
+                                .ignoringRequestMatchers("/webhook/**", "/api/login"))
                 .addFilterAfter(new CsrfCookieFilter(), BasicAuthenticationFilter.class)
                 .securityContext(c -> c.securityContextRepository(contexts))
-                .authorizeHttpRequests(
-                        auth ->
-                                auth.requestMatchers("/api/login")
-                                        .permitAll()
-                                        .requestMatchers("/api/**")
-                                        .authenticated()
-                                        .anyRequest()
-                                        .permitAll())
-                .exceptionHandling(
-                        e ->
-                                e.authenticationEntryPoint(
-                                        new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
-                .logout(
-                        l ->
-                                l.logoutUrl("/api/logout")
-                                        .deleteCookies("JSESSIONID")
-                                        .logoutSuccessHandler(
-                                                new HttpStatusReturningLogoutSuccessHandler(
-                                                        HttpStatus.NO_CONTENT)))
-                .headers(
-                        h ->
-                                h.contentSecurityPolicy(c -> c.policyDirectives(CSP))
-                                        .referrerPolicy(
-                                                r ->
-                                                        r.policy(
-                                                                ReferrerPolicyHeaderWriter
-                                                                        .ReferrerPolicy
-                                                                        .NO_REFERRER)))
+                .authorizeHttpRequests(auth ->
+                        auth.requestMatchers("/api/login")
+                                .permitAll()
+                                .requestMatchers("/api/**")
+                                .authenticated()
+                                .anyRequest()
+                                .permitAll())
+                .exceptionHandling(e ->
+                        e.authenticationEntryPoint(
+                                new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
+                .logout(l ->
+                        l.logoutUrl("/api/logout")
+                                .deleteCookies("JSESSIONID")
+                                .logoutSuccessHandler(
+                                        new HttpStatusReturningLogoutSuccessHandler(
+                                                HttpStatus.NO_CONTENT)))
+                .headers(h ->
+                        h.contentSecurityPolicy(c -> c.policyDirectives(CSP))
+                                .referrerPolicy(r ->
+                                        r.policy(
+                                                ReferrerPolicyHeaderWriter.ReferrerPolicy
+                                                        .NO_REFERRER)))
                 .formLogin(AbstractHttpConfigurer::disable)
                 .httpBasic(AbstractHttpConfigurer::disable);
         return http.build();

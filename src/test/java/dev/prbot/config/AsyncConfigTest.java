@@ -29,11 +29,10 @@ class AsyncConfigTest {
         CountDownLatch release = new CountDownLatch(1);
         CountDownLatch started = new CountDownLatch(1);
         try {
-            executor.execute(
-                    () -> {
-                        started.countDown();
-                        await(release);
-                    });
+            executor.execute(() -> {
+                started.countDown();
+                await(release);
+            });
             assertThat(started.await(5, TimeUnit.SECONDS)).isTrue();
             executor.execute(() -> {}); // fills the queue
 
@@ -52,11 +51,10 @@ class AsyncConfigTest {
         CountDownLatch done = new CountDownLatch(1);
         MDC.put(RequestIdFilter.MDC_KEY, "delivery-123");
         try {
-            executor.execute(
-                    () -> {
-                        seen.set(MDC.get(RequestIdFilter.MDC_KEY));
-                        done.countDown();
-                    });
+            executor.execute(() -> {
+                seen.set(MDC.get(RequestIdFilter.MDC_KEY));
+                done.countDown();
+            });
             assertThat(done.await(5, TimeUnit.SECONDS)).isTrue();
             assertThat(seen.get()).isEqualTo("delivery-123");
         } finally {
