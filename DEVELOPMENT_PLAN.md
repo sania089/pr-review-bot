@@ -121,11 +121,11 @@ Free-tier limits change. Confirm them on Day 1 and record the numbers in the not
 ## Day 7 – React app: scaffold, login and dashboard
 *Done when: you can log in to the React app and see real review history with stats from your local backend.*
 
-- [ ] **Scaffold.** Vite + React + TypeScript in `frontend/`, Tailwind with shadcn/ui, React Router, TanStack Query, ESLint. Dev proxy sends `/api` to Spring Boot.
-- [ ] **Typed API client.** One module wraps `fetch`, handles 401 by redirecting to login, defines response types in one place.
-- [ ] **Login page and route guard.** Form posting to `/api/login`; private routes check the session via a TanStack Query call.
-- [ ] **Dashboard page.** Stat tiles, reviews table with status badges, repo and status filters, pagination, link to each PR, loading, empty and error states.
-- [ ] **Review detail.** Side panel or page with summary, posted comments, tokens, latency and any error reason.
+- [x] **Scaffold.** Vite + React + TypeScript in `frontend/`, Tailwind with shadcn/ui, React Router, TanStack Query, ESLint. Dev proxy sends `/api` to Spring Boot. _Note: Vite 8, React 19, Tailwind 4 (`@tailwindcss/vite`), React Router, TanStack Query, ESLint flat config, Vitest. shadcn/ui is used as a pattern (hand-written `Button`, `Input`, `Card` with `cva` + `cn` in `src/components/ui`), not via its CLI. `npm run dev` proxies `/api` to `localhost:8080`._
+- [x] **Typed API client.** One module wraps `fetch`, handles 401 by redirecting to login, defines response types in one place. _Note: `src/lib/api.ts` is the only `fetch` caller. It sends the `X-XSRF-TOKEN` header on non-GET calls and calls an unauthorized handler on 401 (except `/api/me` and `/api/login`)._
+- [x] **Login page and route guard.** Form posting to `/api/login`; private routes check the session via a TanStack Query call. _Note: `RequireAuth` + `useSession` (`/api/me`, 401 means logged out); after login the user returns to the page they came from._
+- [x] **Dashboard page.** Stat tiles, reviews table with status badges, repo and status filters, pagination, link to each PR, loading, empty and error states. _Note: Stat tiles with a 7/30 day switch, filters (repo text, status), pagination, PR links, loading/empty/error states._
+- [x] **Review detail.** Side panel or page with summary, posted comments, tokens, latency and any error reason. _Note: Page at `/reviews/:id`. It shows the count of comments posted, not their text (not stored). Not yet run against a real backend; SPA deep links (refresh on `/reviews/1`) need a Spring forward to `index.html`, added on Day 10 with the Docker build._
 
 ## Day 8 – Landing page, polish and frontend tests
 *Done when: a stranger understands the product from the landing page and the whole app looks finished.*
@@ -195,3 +195,4 @@ Add dated one-liners here when something differs from the plan (chosen LLM provi
 - 2026-11-03: AI Studio rate limits for `gemini-3.5-flash-lite` (free tier): 15 RPM, 250K TPM, 500 RPD (the 3.6/3.8 Flash models: 5 RPM, 20 RPD, so unusable for volume). Day 5 quota guard defaults: pace at ~12 RPM (headroom under 15) and daily cap ~450 (headroom under 500); both configurable. Limits are per project and the RPD resets at midnight Pacific.
 - 2026-11-10: Day 5 code done (prompt v1, batching, `.prbot.yml`, quota guard); 112 tests (4 need Docker, including the new quota SQL test). Spot-check set is still open and needs real PRs.
 - 2026-11-11: Day 6 code done: read endpoints, session login, metrics, API tests. New required env var `ADMIN_PASSWORD` (12+ chars): add it to your local `.env` or the app will not start. SQL for `/api/reviews` and `/api/stats` is only exercised by the Testcontainers test (needs Docker, runs in CI). Not yet booted against a real Postgres.
+- 2026-11-11: Day 7 code done in `frontend/`: 6 Vitest tests pass, `tsc`, ESLint and `vite build` clean. Frontend CI is the Day 8 task.
