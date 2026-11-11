@@ -21,6 +21,7 @@ public final class DiffBatcher {
             if (!current.isEmpty() && size + length > maxChars) {
                 batches.add(current);
                 current = new ArrayList<>();
+                size = 0;
             }
             current.add(file);
             size += length;
