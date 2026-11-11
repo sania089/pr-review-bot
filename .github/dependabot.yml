@@ -1,6 +1,9 @@
 version: 2
 updates:
   - package-ecosystem: maven
+    ignore:
+    - dependency-name: "org.springframework.boot:spring-boot-starter-parent"
+      update-types: ["version-update:semver-major"]
     directory: /
     schedule:
       interval: weekly
@@ -14,3 +17,4 @@ updates:
     directory: /
     schedule:
       interval: weekly
+

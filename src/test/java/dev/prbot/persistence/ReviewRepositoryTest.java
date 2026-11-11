@@ -112,12 +112,11 @@ class ReviewRepositoryTest {
         assertThat(repository.count("acme/a", "POSTED")).isEqualTo(1);
 
         assertThat(repository.findById(a))
-                .hasValueSatisfying(
-                        r -> {
-                            assertThat(r.commentsPosted()).isEqualTo(2);
-                            assertThat(r.latencyMs()).isEqualTo(1000L);
-                            assertThat(r.createdAt()).isNotNull();
-                        });
+                .hasValueSatisfying(r -> {
+                    assertThat(r.commentsPosted()).isEqualTo(2);
+                    assertThat(r.latencyMs()).isEqualTo(1000L);
+                    assertThat(r.createdAt()).isNotNull();
+                });
         assertThat(repository.findById(-1)).isEmpty();
     }
 

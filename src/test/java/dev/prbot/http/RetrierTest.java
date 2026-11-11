@@ -43,13 +43,12 @@ class RetrierTest {
     void retriesServerErrorsWithExponentialBackoffThenSucceeds() {
         AtomicInteger calls = new AtomicInteger();
         String result =
-                retrier.call(
-                        () -> {
-                            if (calls.incrementAndGet() < 3) {
-                                throw serverError(HttpStatus.BAD_GATEWAY, null);
-                            }
-                            return "ok";
-                        });
+                retrier.call(() -> {
+                    if (calls.incrementAndGet() < 3) {
+                        throw serverError(HttpStatus.BAD_GATEWAY, null);
+                    }
+                    return "ok";
+                });
 
         assertThat(result).isEqualTo("ok");
         assertThat(calls).hasValue(3);
@@ -59,30 +58,27 @@ class RetrierTest {
     @Test
     void retriesNetworkErrors() {
         AtomicInteger calls = new AtomicInteger();
-        retrier.run(
-                () -> {
-                    if (calls.incrementAndGet() == 1) {
-                        throw new ResourceAccessException("timeout", new SocketTimeoutException());
-                    }
-                });
+        retrier.run(() -> {
+            if (calls.incrementAndGet() == 1) {
+                throw new ResourceAccessException("timeout", new SocketTimeoutException());
+            }
+        });
         assertThat(calls).hasValue(2);
     }
 
     @Test
     void doesNotRetryClientErrorsOtherThan429() {
         AtomicInteger calls = new AtomicInteger();
-        assertThatThrownBy(
-                        () ->
-                                retrier.call(
-                                        () -> {
-                                            calls.incrementAndGet();
-                                            throw HttpClientErrorException.create(
-                                                    HttpStatus.UNPROCESSABLE_ENTITY,
-                                                    "bad",
-                                                    new HttpHeaders(),
-                                                    new byte[0],
-                                                    StandardCharsets.UTF_8);
-                                        }))
+        assertThatThrownBy(() ->
+                        retrier.call(() -> {
+                            calls.incrementAndGet();
+                            throw HttpClientErrorException.create(
+                                    HttpStatus.UNPROCESSABLE_ENTITY,
+                                    "bad",
+                                    new HttpHeaders(),
+                                    new byte[0],
+                                    StandardCharsets.UTF_8);
+                        }))
                 .isInstanceOf(HttpClientErrorException.class);
         assertThat(calls).hasValue(1);
         assertThat(sleeps).isEmpty();
@@ -91,30 +87,27 @@ class RetrierTest {
     @Test
     void retries429() {
         AtomicInteger calls = new AtomicInteger();
-        retrier.run(
-                () -> {
-                    if (calls.incrementAndGet() == 1) {
-                        throw HttpClientErrorException.create(
-                                HttpStatus.TOO_MANY_REQUESTS,
-                                "slow down",
-                                new HttpHeaders(),
-                                new byte[0],
-                                StandardCharsets.UTF_8);
-                    }
-                });
+        retrier.run(() -> {
+            if (calls.incrementAndGet() == 1) {
+                throw HttpClientErrorException.create(
+                        HttpStatus.TOO_MANY_REQUESTS,
+                        "slow down",
+                        new HttpHeaders(),
+                        new byte[0],
+                        StandardCharsets.UTF_8);
+            }
+        });
         assertThat(calls).hasValue(2);
     }
 
     @Test
     void stopsAfterMaxAttemptsAndRethrowsTheLastError() {
         AtomicInteger calls = new AtomicInteger();
-        assertThatThrownBy(
-                        () ->
-                                retrier.call(
-                                        () -> {
-                                            calls.incrementAndGet();
-                                            throw serverError(HttpStatus.SERVICE_UNAVAILABLE, null);
-                                        }))
+        assertThatThrownBy(() ->
+                        retrier.call(() -> {
+                            calls.incrementAndGet();
+                            throw serverError(HttpStatus.SERVICE_UNAVAILABLE, null);
+                        }))
                 .isInstanceOf(HttpServerErrorException.class);
         assertThat(calls).hasValue(3);
         assertThat(sleeps).hasSize(2);
@@ -123,24 +116,22 @@ class RetrierTest {
     @Test
     void honoursRetryAfterSeconds() {
         AtomicInteger calls = new AtomicInteger();
-        retrier.run(
-                () -> {
-                    if (calls.incrementAndGet() == 1) {
-                        throw serverError(HttpStatus.SERVICE_UNAVAILABLE, "7");
-                    }
-                });
+        retrier.run(() -> {
+            if (calls.incrementAndGet() == 1) {
+                throw serverError(HttpStatus.SERVICE_UNAVAILABLE, "7");
+            }
+        });
         assertThat(sleeps).containsExactly(Duration.ofSeconds(7));
     }
 
     @Test
     void capsRetryAfterAtTheMaximumDelay() {
         AtomicInteger calls = new AtomicInteger();
-        retrier.run(
-                () -> {
-                    if (calls.incrementAndGet() == 1) {
-                        throw serverError(HttpStatus.SERVICE_UNAVAILABLE, "3600");
-                    }
-                });
+        retrier.run(() -> {
+            if (calls.incrementAndGet() == 1) {
+                throw serverError(HttpStatus.SERVICE_UNAVAILABLE, "3600");
+            }
+        });
         assertThat(sleeps).containsExactly(Duration.ofSeconds(30));
     }
 
@@ -162,13 +153,11 @@ class RetrierTest {
     @Test
     void doesNotRetryProgrammingErrors() {
         AtomicInteger calls = new AtomicInteger();
-        assertThatThrownBy(
-                        () ->
-                                retrier.call(
-                                        () -> {
-                                            calls.incrementAndGet();
-                                            throw new IllegalStateException("bug");
-                                        }))
+        assertThatThrownBy(() ->
+                        retrier.call(() -> {
+                            calls.incrementAndGet();
+                            throw new IllegalStateException("bug");
+                        }))
                 .isInstanceOf(IllegalStateException.class);
         assertThat(calls).hasValue(1);
     }

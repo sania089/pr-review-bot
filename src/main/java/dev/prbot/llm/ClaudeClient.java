@@ -66,14 +66,13 @@ public class ClaudeClient implements LlmClient {
                                         ReviewPrompt.userMessage(annotatedDiff))));
 
         JsonNode response =
-                retrier.call(
-                        () ->
-                                http.post()
-                                        .uri("/v1/messages")
-                                        .contentType(MediaType.APPLICATION_JSON)
-                                        .body(request)
-                                        .retrieve()
-                                        .body(JsonNode.class));
+                retrier.call(() ->
+                        http.post()
+                                .uri("/v1/messages")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .body(request)
+                                .retrieve()
+                                .body(JsonNode.class));
 
         for (JsonNode block : response.path("content")) {
             if ("tool_use".equals(block.path("type").asText())) {
