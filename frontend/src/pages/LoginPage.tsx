@@ -5,16 +5,18 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { api, ApiError } from '@/lib/api'
+import { usePageTitle } from '@/lib/usePageTitle'
 import { ME_KEY, useSession } from '@/lib/auth'
 
 export function LoginPage() {
+  usePageTitle('Sign in')
   const session = useSession()
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const location = useLocation()
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
-  const from = (location.state as { from?: string } | null)?.from ?? '/'
+  const from = (location.state as { from?: string } | null)?.from ?? '/dashboard'
 
   if (session.data) return <Navigate to={from} replace />
 
@@ -39,7 +41,7 @@ export function LoginPage() {
   }
 
   return (
-    <main className="mx-auto mt-24 max-w-sm px-4">
+    <main className="mx-auto mt-16 max-w-sm px-4 sm:mt-24">
       <Card>
         <h1 className="mb-4 text-xl font-semibold">Sign in</h1>
         <form onSubmit={submit} className="space-y-3">
