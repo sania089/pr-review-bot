@@ -33,37 +33,19 @@ const FEATURES = [
   },
 ]
 
-/** Illustrative example only; replace with a real screenshot once the bot has reviewed a public PR. */
+/** A real review the bot posted on this project's own pull request. */
 function ExampleReview() {
   return (
-    <figure className="mx-auto w-full max-w-2xl" aria-label="Example review comment">
-      <Card className="overflow-hidden p-0">
-        <div className="border-b border-border bg-muted px-4 py-2 font-mono text-xs text-muted-foreground">
-          src/main/java/app/UserRepository.java
-        </div>
-        <pre className="overflow-x-auto px-4 py-3 text-xs leading-6">
-          <code>
-            <span className="text-danger">- </span>
-            {'String sql = "SELECT * FROM users WHERE name = ?";\n'}
-            <span className="text-primary">+ </span>
-            {'String sql = "SELECT * FROM users WHERE name = \'" + name + "\'";'}
-          </code>
-        </pre>
-        <div className="border-t border-border p-4 text-sm">
-          <p className="mb-1 font-semibold">
-            <span className="mr-2 rounded-full bg-red-100 px-2 py-0.5 text-xs text-red-800 dark:bg-red-950 dark:text-red-300">
-              high
-            </span>
-            SQL injection
-          </p>
-          <p className="text-muted-foreground">
-            <code>name</code> is concatenated into the query, so a crafted value returns every user. Use a prepared
-            statement with a bound parameter.
-          </p>
-        </div>
-      </Card>
+    <figure className="mx-auto w-full max-w-2xl">
+      <img
+        src="/demo-review.png"
+        width={1175}
+        height={460}
+        alt="A pull request review comment from the bot on DiffTruncator.java: a high severity finding that removing the line which increments 'used' stops the character limit from being enforced."
+        className="w-full rounded-lg border border-border"
+      />
       <figcaption className="mt-2 text-center text-xs text-muted-foreground">
-        Example of an inline review comment.
+        A real review comment the bot posted on this project&apos;s own pull request.
       </figcaption>
     </figure>
   )
