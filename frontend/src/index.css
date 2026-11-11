@@ -1,0 +1,19 @@
+@import 'tailwindcss';
+
+/* Design tokens. Day 8 adds the dark theme and final polish. */
+@theme {
+  --color-background: #ffffff;
+  --color-foreground: #0f172a;
+  --color-muted: #f1f5f9;
+  --color-muted-foreground: #475569;
+  --color-border: #e2e8f0;
+  --color-primary: #1d4ed8;
+  --color-primary-foreground: #ffffff;
+  --color-danger: #b91c1c;
+}
+
+body {
+  background: var(--color-background);
+  color: var(--color-foreground);
+  font-family: system-ui, sans-serif;
+}
