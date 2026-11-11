@@ -17,7 +17,7 @@ import java.util.Map;
 /** Pure helpers for the GitHub App's RS256 JSON Web Token; no library needed. */
 final class AppJwt {
 
-    /** GitHub allows at most 10 minutes. */
+    /** GitHub allows at most 10 minutes. 
     static final Duration LIFETIME = Duration.ofMinutes(9);
 
     /** GitHub recommends backdating iat to tolerate clock drift. */
