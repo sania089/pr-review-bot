@@ -71,6 +71,8 @@ In your test repo: Settings → Webhooks → payload URL `https://<ngrok>/webhoo
 | `prbot.admin.password` | `ADMIN_PASSWORD` | – (required, 12+ chars) | Password of the dashboard login (`POST /api/login`). The app refuses to start without it |
 | `server.servlet.session.cookie.secure` | `SESSION_COOKIE_SECURE` | `true` | Session cookie is HttpOnly and SameSite=Strict. Set `false` only to test over plain http on a non-localhost host |
 | `prbot.executor.threads` | – | `2` | Concurrent reviews |
+| `prbot.webhook.max-bytes` | - | `1048576` | Largest accepted webhook body in bytes; bigger or length-less requests get 413 or 411 before the body is read |
+| `prbot.github.api-url` / `prbot.llm.gemini.base-url` | - | the real APIs | Only changed by the end-to-end tests, which point them at a fake server |
 | `prbot.executor.queue-capacity` | – | `20` | Waiting reviews; beyond this the webhook gets 503 and the review is skipped |
 | `VITE_GITHUB_APP_URL` | – (build time, frontend) | empty | Public install URL of the GitHub App (`https://github.com/apps/<name>`). The landing page shows a disabled install button until it is set |
 | `VITE_REPO_URL` | – (build time, frontend) | empty | Optional link to the source repo, shown in the site footer |

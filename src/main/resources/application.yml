@@ -31,7 +31,10 @@ prbot:
     token: ${GITHUB_TOKEN:}
     app-id: ${GITHUB_APP_ID:}
     app-private-key: ${GITHUB_APP_PRIVATE_KEY:} # PEM text; literal \n sequences are accepted
+    api-url: https://api.github.com # only changed by tests, which point it at a fake server
   webhook-secret: ${GITHUB_WEBHOOK_SECRET:}
+  webhook:
+    max-bytes: 1048576 # larger webhook bodies get 413; real pull request events are far smaller
   max-diff-chars: 60000
   max-comments: 15 # hard upper bound; .prbot.yml strictness can lower it
   max-batch-chars: 24000 # diff chars per model request; bigger PRs are reviewed in several requests
@@ -44,6 +47,7 @@ prbot:
     gemini:
       api-key: ${GEMINI_API_KEY:}
       model: gemini-3.5-flash-lite
+      base-url: https://generativelanguage.googleapis.com # only changed by tests
     groq:
       api-key: ${GROQ_API_KEY:}
       model: openai/gpt-oss-120b
