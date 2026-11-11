@@ -130,10 +130,10 @@ Free-tier limits change. Confirm them on Day 1 and record the numbers in the not
 ## Day 8 – Landing page, polish and frontend tests
 *Done when: a stranger understands the product from the landing page and the whole app looks finished.*
 
-- [ ] **Landing page.** What the bot does, a real review screenshot or GIF, three-step install (install the App, open a PR, get a review), install button.
-- [ ] **Docs page.** In-app setup and `.prbot.yml` reference.
-- [ ] **Visual polish.** One set of Tailwind design tokens, light and dark theme, responsive to phone width, keyboard focus states, readable contrast, page titles and favicon.
-- [ ] **Frontend tests and CI.** Vitest + React Testing Library for dashboard states and the login guard; add `tsc`, ESLint and tests to the CI workflow.
+- [x] **Landing page.** What the bot does, a real review screenshot or GIF, three-step install (install the App, open a PR, get a review), install button. _Note: public route `/` (`LandingPage`); the dashboard moved to `/dashboard`. The screenshot is a labelled illustrative example (HTML), to be replaced with a real one on Day 11. The install button reads `VITE_GITHUB_APP_URL` and shows a disabled "coming soon" state until it is set (owner task, Day 10)._
+- [x] **Docs page.** In-app setup and `.prbot.yml` reference. _Note: public route `/docs` with setup, what is skipped, `.prbot.yml` reference and data handling (`/docs#data`)._
+- [x] **Visual polish.** One set of Tailwind design tokens, light and dark theme, responsive to phone width, keyboard focus states, readable contrast, page titles and favicon. _Note: tokens are CSS variables in `index.css` with a `.dark` override; theme toggle follows the OS by default and is remembered in localStorage. `usePageTitle` per page, SVG favicon. Not yet checked by eye at phone width or in a contrast tool (owner check)._
+- [x] **Frontend tests and CI.** Vitest + React Testing Library for dashboard states and the login guard; add `tsc`, ESLint and tests to the CI workflow. _Note: 11 tests (added landing, docs, theme toggle, login redirect back). New `frontend` CI job runs `npm ci`, `npm run build` (tsc + vite), lint and tests._
 
 ## Day 9 – End-to-end tests and security pass
 *Done when: the webhook-to-posted-review flow is tested offline and the security checklist is clear.*
@@ -196,3 +196,4 @@ Add dated one-liners here when something differs from the plan (chosen LLM provi
 - 2026-11-10: Day 5 code done (prompt v1, batching, `.prbot.yml`, quota guard); 112 tests (4 need Docker, including the new quota SQL test). Spot-check set is still open and needs real PRs.
 - 2026-11-11: Day 6 code done: read endpoints, session login, metrics, API tests. New required env var `ADMIN_PASSWORD` (12+ chars): add it to your local `.env` or the app will not start. SQL for `/api/reviews` and `/api/stats` is only exercised by the Testcontainers test (needs Docker, runs in CI). Not yet booted against a real Postgres.
 - 2026-11-11: Day 7 code done in `frontend/`: 6 Vitest tests pass, `tsc`, ESLint and `vite build` clean. Frontend CI is the Day 8 task.
+- 2026-11-11: Day 8 code done. Owner tasks left: create/publish the GitHub App install URL, set `VITE_GITHUB_APP_URL`, capture a real review screenshot, check the UI by eye (phone width, dark theme).

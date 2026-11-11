@@ -5,7 +5,10 @@ import { BrowserRouter } from 'react-router-dom'
 import { App } from './App'
 import { setUnauthorizedHandler } from './lib/api'
 import { ME_KEY } from './lib/auth'
+import { initTheme } from './lib/theme'
 import './index.css'
+
+initTheme()
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false } },

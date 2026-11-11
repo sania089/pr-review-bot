@@ -6,6 +6,7 @@ import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { StatusBadge } from '@/components/StatusBadge'
 import { api, type ReviewStatus, type StatsWindow } from '@/lib/api'
+import { usePageTitle } from '@/lib/usePageTitle'
 import { formatDate, formatDuration, formatNumber, formatPercent } from '@/lib/format'
 
 const STATUSES: ReviewStatus[] = ['QUEUED', 'POSTED', 'FAILED', 'SKIPPED']
@@ -35,6 +36,7 @@ function StatTiles({ w }: { w: StatsWindow }) {
 }
 
 export function DashboardPage() {
+  usePageTitle('Dashboard')
   const [days, setDays] = useState<7 | 30>(7)
   const [repoInput, setRepoInput] = useState('')
   const [repo, setRepo] = useState('')

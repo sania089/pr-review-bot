@@ -53,8 +53,26 @@ describe('app', () => {
 
   it('redirects to the login page without a session', async () => {
     mockApi({ '/api/me': () => json({}, 401) })
-    renderApp('/')
+    renderApp('/dashboard')
     expect(await screen.findByRole('heading', { name: 'Sign in' })).toBeInTheDocument()
+  })
+
+  it('returns to the requested page after login', async () => {
+    let loggedIn = false
+    mockApi({
+      '/api/me': () => (loggedIn ? json({ username: 'admin' }) : json({}, 401)),
+      '/api/login': () => {
+        loggedIn = true
+        return json({ username: 'admin' })
+      },
+      '/api/stats': () => json(stats),
+      '/api/reviews': () => json({ items: [], page: 0, size: 20, totalItems: 0, totalPages: 0 }),
+    })
+    renderApp('/dashboard')
+    await userEvent.type(await screen.findByLabelText('Username'), 'admin')
+    await userEvent.type(screen.getByLabelText('Password'), 'correct-password')
+    await userEvent.click(screen.getByRole('button', { name: 'Sign in' }))
+    expect(await screen.findByRole('heading', { name: 'Overview' })).toBeInTheDocument()
   })
 
   it('shows an error on wrong credentials', async () => {
@@ -72,7 +90,7 @@ describe('app', () => {
       '/api/stats': () => json(stats),
       '/api/reviews': () => json({ items: [review], page: 0, size: 20, totalItems: 1, totalPages: 1 }),
     })
-    renderApp('/')
+    renderApp('/dashboard')
     expect(await screen.findByRole('link', { name: 'acme/app#7' })).toHaveAttribute(
       'href', 'https://github.com/acme/app/pull/7')
     expect(within(screen.getByRole('table')).getByText('POSTED')).toBeInTheDocument()
@@ -85,7 +103,7 @@ describe('app', () => {
       '/api/stats': () => json(stats),
       '/api/reviews': () => json({ items: [], page: 0, size: 20, totalItems: 0, totalPages: 0 }),
     })
-    renderApp('/')
+    renderApp('/dashboard')
     expect(await screen.findByText('No reviews match.')).toBeInTheDocument()
   })
 
@@ -95,7 +113,7 @@ describe('app', () => {
       '/api/stats': () => json(stats),
       '/api/reviews': () => json({}, 500),
     })
-    renderApp('/')
+    renderApp('/dashboard')
     expect(await screen.findByText(/Could not load reviews/)).toBeInTheDocument()
   })
 
@@ -107,5 +125,37 @@ describe('app', () => {
     renderApp('/reviews/1')
     expect(await screen.findByText('LLM timed out')).toBeInTheDocument()
     expect(screen.getAllByText('FAILED')[0]).toBeInTheDocument()
+  })
+
+  it('shows the public landing page without a session', async () => {
+    mockApi({ '/api/me': () => json({}, 401) })
+    renderApp('/')
+    expect(await screen.findByRole('heading', { name: /code review on every pull request/i })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'How it works' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Sign in' })).toHaveAttribute('href', '/login')
+    expect(document.title).toBe('PR Review Bot')
+  })
+
+  it('links to the dashboard from the landing page when logged in', async () => {
+    mockApi({ '/api/me': () => json({ username: 'admin' }) })
+    renderApp('/')
+    expect(await screen.findByRole('link', { name: 'Dashboard' })).toHaveAttribute('href', '/dashboard')
+  })
+
+  it('shows the docs page with the .prbot.yml reference', async () => {
+    mockApi({ '/api/me': () => json({}, 401) })
+    renderApp('/docs')
+    expect(await screen.findByRole('heading', { name: /\.prbot\.yml/ })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Data handling' })).toBeInTheDocument()
+    expect(document.title).toBe('Docs · PR Review Bot')
+  })
+
+  it('toggles the dark theme', async () => {
+    mockApi({ '/api/me': () => json({}, 401) })
+    renderApp('/')
+    await userEvent.click(await screen.findByRole('button', { name: 'Switch to dark theme' }))
+    expect(document.documentElement).toHaveClass('dark')
+    await userEvent.click(screen.getByRole('button', { name: 'Switch to light theme' }))
+    expect(document.documentElement).not.toHaveClass('dark')
   })
 })

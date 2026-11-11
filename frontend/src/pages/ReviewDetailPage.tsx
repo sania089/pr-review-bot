@@ -4,6 +4,7 @@ import { Link, useParams } from 'react-router-dom'
 import { Card } from '@/components/ui/card'
 import { StatusBadge } from '@/components/StatusBadge'
 import { api, ApiError } from '@/lib/api'
+import { usePageTitle } from '@/lib/usePageTitle'
 import { formatDate, formatDuration, formatNumber } from '@/lib/format'
 
 function Row({ label, children }: { label: string; children: ReactNode }) {
@@ -16,6 +17,7 @@ function Row({ label, children }: { label: string; children: ReactNode }) {
 }
 
 export function ReviewDetailPage() {
+  usePageTitle('Review')
   const id = Number(useParams().id)
   const review = useQuery({
     queryKey: ['review', id],
@@ -27,7 +29,7 @@ export function ReviewDetailPage() {
 
   return (
     <main className="space-y-4">
-      <Link to="/" className="text-sm text-primary underline">
+      <Link to="/dashboard" className="text-sm text-primary underline">
         ← Back to dashboard
       </Link>
       {review.isPending && <p className="text-muted-foreground">Loading review…</p>}
@@ -49,7 +51,7 @@ export function ReviewDetailPage() {
             <StatusBadge status={r.status} />
           </div>
           {r.error && (
-            <p role="alert" className="mb-3 rounded-md bg-red-50 p-3 text-sm text-danger">
+            <p role="alert" className="mb-3 rounded-md bg-danger-muted p-3 text-sm text-danger">
               {r.error}
             </p>
           )}
