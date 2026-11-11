@@ -20,7 +20,7 @@ final class AppJwt {
     /** GitHub allows at most 10 minutes. 
     static final Duration LIFETIME = Duration.ofMinutes(9);
 
-    /** GitHub recommends backdating iat to tolerate clock drift. */
+    /** GitHub recommends backdating iat to tolerate clock drift. 
     static final Duration BACKDATE = Duration.ofSeconds(60);
 
     private static final ObjectMapper JSON = new ObjectMapper();
