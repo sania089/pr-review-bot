@@ -35,7 +35,8 @@ class BotPropertiesTest {
                                 "prbot.llm.claude.api-key=",
                                 "prbot.llm.claude.model=m",
                                 "prbot.executor.threads=2",
-                                "prbot.executor.queue-capacity=5"));
+                                "prbot.executor.queue-capacity=5",
+                                "prbot.admin.password=a-long-test-password"));
         all.addAll(List.of(overrides)); // later entries win
         return all.toArray(String[]::new);
     }
@@ -43,6 +44,21 @@ class BotPropertiesTest {
     @Test
     void startsWithoutAnthropicKeyWhenAnotherProviderIsSelected() {
         runner.withPropertyValues(props()).run(ctx -> assertThat(ctx).hasNotFailed());
+    }
+
+    @Test
+    void adminPasswordIsRequiredAndMustBeLongEnough() {
+        runner.withPropertyValues(props("prbot.admin.password="))
+                .run(ctx -> assertThat(ctx).hasFailed());
+        runner.withPropertyValues(props("prbot.admin.password=short"))
+                .run(ctx -> assertThat(ctx).hasFailed());
+        runner.withPropertyValues(props())
+                .run(
+                        ctx -> {
+                            BotProperties.Admin admin = ctx.getBean(BotProperties.class).admin();
+                            assertThat(admin.username()).isEqualTo("admin");
+                            assertThat(admin.toString()).doesNotContain("a-long-test-password");
+                        });
     }
 
     @Test

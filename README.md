@@ -26,6 +26,7 @@ GITHUB_TOKEN=ghp_...            # fine-grained PAT: Pull requests (rw), Contents
 # or, for a GitHub App: GITHUB_AUTH=app, GITHUB_APP_ID=..., GITHUB_APP_PRIVATE_KEY="-----BEGIN RSA PRIVATE KEY-----
 ..."
 GITHUB_WEBHOOK_SECRET=some-long-random-string
+ADMIN_PASSWORD=at-least-12-characters   # dashboard login (user name: admin)
 GEMINI_API_KEY=...              # or GROQ_API_KEY / ANTHROPIC_API_KEY, see LLM_PROVIDER below
 ```
 ```bash
@@ -66,6 +67,9 @@ In your test repo: Settings → Webhooks → payload URL `https://<ngrok>/webhoo
 | `prbot.quota.requests-per-minute` | – | `12` | Model requests are spaced evenly to stay under this. Default leaves headroom under Gemini's 15 RPM |
 | `prbot.quota.daily-limit` | – | `450` | Model requests per day, counted in the database. When used up, new reviews are recorded as SKIPPED and nothing is posted. Default leaves headroom under Gemini's 500 RPD |
 | `prbot.quota.reset-zone` | – | `America/Los_Angeles` | Time zone in which the day (and the provider's quota) rolls over |
+| `prbot.admin.username` | `ADMIN_USERNAME` | `admin` | User name of the dashboard login |
+| `prbot.admin.password` | `ADMIN_PASSWORD` | – (required, 12+ chars) | Password of the dashboard login (`POST /api/login`). The app refuses to start without it |
+| `server.servlet.session.cookie.secure` | `SESSION_COOKIE_SECURE` | `true` | Session cookie is HttpOnly and SameSite=Strict. Set `false` only to test over plain http on a non-localhost host |
 | `prbot.executor.threads` | – | `2` | Concurrent reviews |
 | `prbot.executor.queue-capacity` | – | `20` | Waiting reviews; beyond this the webhook gets 503 and the review is skipped |
 

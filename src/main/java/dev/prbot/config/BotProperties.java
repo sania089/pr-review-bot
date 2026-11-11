@@ -5,6 +5,7 @@ import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 import java.time.Duration;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.bind.DefaultValue;
@@ -22,7 +23,8 @@ public record BotProperties(
         @Valid @NotNull Llm llm,
         @Valid @NotNull Executor executor,
         @Valid @DefaultValue Http http,
-        @Valid @DefaultValue Quota quota) {
+        @Valid @DefaultValue Quota quota,
+        @Valid @NotNull Admin admin) {
 
     public enum Auth {
         PAT,
@@ -91,6 +93,20 @@ public record BotProperties(
             @Min(1) @DefaultValue("12") int requestsPerMinute,
             @Min(1) @DefaultValue("450") int dailyLimit,
             @NotBlank @DefaultValue("America/Los_Angeles") String resetZone) {}
+
+    /**
+     * The single dashboard login. The password has no default and must be long enough to resist
+     * guessing.
+     */
+    public record Admin(
+            @NotBlank @DefaultValue("admin") String username,
+            @NotBlank @Size(min = 12, message = "must be at least 12 characters") String password) {
+
+        @Override
+        public String toString() {
+            return "Admin[username=" + username + ", password=***]";
+        }
+    }
 
     /** Timeouts and retry policy shared by the GitHub and LLM clients. */
     public record Http(
