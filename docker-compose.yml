@@ -1,4 +1,5 @@
-# Local Postgres only; the defaults in application.yml match these credentials.
+# Local Postgres, plus the full app (React build + Spring Boot) with `docker compose --profile app up --build`.
+# For just the database, run `docker compose up -d postgres` and start the app with `mvn spring-boot:run`.
 services:
   postgres:
     image: postgres:16-alpine
@@ -10,6 +11,27 @@ services:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U prbot -d prbot"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  app:
+    profiles: ["app"]
+    build: .
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    # Secrets come from your git-ignored .env file (the same one `mvn spring-boot:run` reads).
+    env_file: .env
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/prbot
+      DB_USER: prbot
+      DB_PASSWORD: prbot
+      SESSION_COOKIE_SECURE: "false" # plain http on localhost
 
 volumes:
   pgdata:
