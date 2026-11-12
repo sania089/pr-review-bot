@@ -1,45 +1,75 @@
-# PR Reviewer Bot
+# PR Review Bot
 
-A Spring Boot service that receives GitHub `pull_request` webhooks, sends the diff to an LLM (Gemini, Groq or Claude), and posts
-the result back as a PR review with inline comments.
+A GitHub App that reviews pull requests with an LLM. Open a PR and the bot posts a review with inline comments on bugs, security
+problems and correctness issues, with a severity on each. It does not comment on style. It runs entirely on free tiers
+(Gemini free tier, Neon Postgres, Render, UptimeRobot).
+
+![A review posted by the bot](frontend/public/demo-review.png)
+
+- **Install:** https://github.com/apps/pr-reviewing-bot
+- Reviews are posted as `COMMENT` only. The bot can never approve or request changes.
+- A small React dashboard (login required) shows review history, stats, tokens and latency.
+
+## How it works
 
 ```
-GitHub ──webhook──▶ WebhookController ──▶ ReviewService (async)
-                     (HMAC check)            │ 1. GitHubClient.fetchDiff
-                                             │ 2. DiffAnnotator (add line numbers)
-                                             │ 3. LlmClient.review (JSON-schema output)
-                                             │ 4. drop comments outside the diff
-                                             ▼ 5. GitHubClient.postReview
+GitHub ──webhook──▶ WebhookController ──▶ ReviewService (bounded executor)
+                     (HMAC check)            │ 1. dedupe in DB (repo, PR, head SHA)
+                                             │ 2. GitHubClient.fetchDiff (App installation token)
+                                             │ 3. filter files, batch at file boundaries, DiffAnnotator
+                                             │ 4. LlmClient.review (Gemini / Groq / Claude, JSON-schema output)
+                                             │ 5. drop comments outside the diff, apply .prbot.yml
+                                             ▼ 6. GitHubClient.postReview, update the review row
+
+React (served from Spring) ──▶ /api/login, /api/reviews, /api/stats ──▶ Postgres
 ```
 
-## Tech stack
-- Java 21, Spring Boot 3.3 (Web, Actuator, Validation), Maven
-- `RestClient` for the GitHub REST API and the LLM APIs (Gemini, Groq, Anthropic), chosen with `prbot.llm.provider`
-- Structured output via JSON schema (Gemini, Groq) or a forced tool call (Claude); no free-text JSON parsing
-- JUnit 5 tests; later: Testcontainers + WireMock, Docker, Postgres, Micrometer
+Skipped on purpose: draft PRs, PRs by bots (Dependabot, Renovate), lockfiles, minified or generated files, binaries, vendored
+paths, and PRs whose filtered diff is empty. Every PR gets a row in the database: `POSTED`, `FAILED` or `SKIPPED` with a reason.
+A redelivered webhook for the same PR and commit never produces a second review.
 
-## Run it
-Needs JDK 21 and Maven. Put secrets in environment variables, or in a git-ignored `.env` file in the
-project root (`KEY=value` per line, read automatically at startup):
-```bash
-GITHUB_TOKEN=ghp_...            # fine-grained PAT: Pull requests (rw), Contents (r)
-# or, for a GitHub App: GITHUB_AUTH=app, GITHUB_APP_ID=..., GITHUB_APP_PRIVATE_KEY="-----BEGIN RSA PRIVATE KEY-----
-..."
-GITHUB_WEBHOOK_SECRET=some-long-random-string
-ADMIN_PASSWORD=at-least-12-characters   # dashboard login (user name: admin)
-GEMINI_API_KEY=...              # or GROQ_API_KEY / ANTHROPIC_API_KEY, see LLM_PROVIDER below
-```
-```bash
-mvn spring-boot:run
-ngrok http 8080                         # expose it for GitHub
-```
-The app refuses to start if the GitHub credentials, the webhook secret, or the API key of the selected
-provider is missing.
+## Data handling
 
-In your test repo: Settings → Webhooks → payload URL `https://<ngrok>/webhook/github`, content type
-`application/json`, the same secret, event "Pull requests".
+**The diff of every reviewed PR is sent to the configured LLM provider.** Source code from private repositories leaves your
+infrastructure. Some free tiers (Gemini's included) may use prompts to improve the provider's products, so **install the bot on
+public repositories only**, or self-host with a paid tier or a provider whose terms you accept.
 
-`mvn verify` runs the tests and checks formatting; `mvn spotless:apply` fixes formatting.
+The database stores metadata only: repository, PR number, commit SHA, status, provider, model, token counts, latency and an error
+reason. It does not store the diff or the text of the comments. Secrets are never logged.
+
+## Run it locally (about 5 minutes)
+
+Needs JDK 21, Maven, Node 22 (for the dashboard) and Docker (for Postgres).
+
+1. Start Postgres: `docker compose up -d postgres`
+2. Create a git-ignored `.env` in the project root (read automatically at startup):
+   ```bash
+   GITHUB_TOKEN=ghp_...                    # fine-grained PAT: Pull requests (rw), Contents (r)
+   GITHUB_WEBHOOK_SECRET=some-long-random-string
+   ADMIN_PASSWORD=at-least-12-characters   # dashboard login (user name: admin)
+   GEMINI_API_KEY=...                      # free key from Google AI Studio
+   ```
+   For a GitHub App instead of a PAT, set `GITHUB_AUTH=app`, `GITHUB_APP_ID` and `GITHUB_APP_PRIVATE_KEY`.
+3. Run `mvn spring-boot:run` and, in another terminal, `ngrok http 8080`.
+4. In your test repo: Settings, Webhooks, payload URL `https://<ngrok>/webhook/github`, content type `application/json`, the same
+   secret, event "Pull requests".
+5. Open a PR. The review appears on the PR within a minute.
+
+The app refuses to start if the GitHub credentials, the webhook secret, the admin password or the API key of the selected
+provider is missing. For the dashboard: `cd frontend && npm ci && npm run dev` (proxies `/api` to port 8080). To run everything
+in one container: `docker compose --profile app up --build`.
+
+`mvn verify` runs the tests and the formatting check; `mvn spotless:apply` fixes formatting. `cd frontend && npm run lint && npm test`
+for the frontend. Database tests use Testcontainers and skip themselves when Docker is not available.
+
+## Deploy on free tiers
+
+1. **Neon:** create a free Postgres project and note the JDBC URL (`jdbc:postgresql://<host>/<db>?sslmode=require`).
+2. **GitHub App:** permissions Pull requests (read and write), Contents (read), Metadata (read); subscribe to Pull request events;
+   webhook URL `https://<your-render-host>/webhook/github` and the webhook secret.
+3. **Render:** New, Blueprint, pick this repo (`render.yaml`). Fill in the secrets it asks for (App ID and private key, webhook
+   secret, Gemini key, admin password, database URL, user and password). Flyway creates the schema on startup.
+4. **UptimeRobot:** a 5-minute HTTP check on `/actuator/health` keeps the free instance awake and emails you on downtime.
 
 ## Configuration
 
@@ -48,8 +78,7 @@ In your test repo: Settings → Webhooks → payload URL `https://<ngrok>/webhoo
 | `prbot.github.auth` | `GITHUB_AUTH` | `pat` | `pat` (local dev, one token) or `app` (GitHub App, works on every repo it is installed on) |
 | `prbot.github.token` | `GITHUB_TOKEN` | – | Required when `auth=pat` |
 | `prbot.github.app-id` | `GITHUB_APP_ID` | – | Required when `auth=app` |
-| `prbot.github.app-private-key` | `GITHUB_APP_PRIVATE_KEY` | – | Required when `auth=app`. The `.pem` text GitHub gives you (PKCS#1 or PKCS#8); literal `
-` sequences are accepted so it fits on one env line |
+| `prbot.github.app-private-key` | `GITHUB_APP_PRIVATE_KEY` | – | Required when `auth=app`. The `.pem` text GitHub gives you (PKCS#1 or PKCS#8); literal `\n` sequences are accepted so it fits on one env line |
 | `prbot.webhook-secret` | `GITHUB_WEBHOOK_SECRET` | – (required) | Webhook HMAC secret |
 | `prbot.llm.provider` | `LLM_PROVIDER` | `gemini` | `gemini`, `groq` or `claude` |
 | `prbot.llm.gemini.api-key` / `.model` | `GEMINI_API_KEY` | – / `gemini-3.5-flash-lite` | |
@@ -97,16 +126,15 @@ strictness: normal
 
 Unknown keys, a wrong type or invalid YAML make the bot ignore the whole file and use the defaults. The review summary says so. `prbot.max-comments` stays an upper bound.
 
-## Milestones
+## Project layout
 
-| # | Milestone | Done when |
-|---|-----------|-----------|
-| 1 | **Skeleton + webhook** (day 1) | Webhook reaches the app, bad signatures get 401, `ping` returns 200. |
-| 2 | **End-to-end review** (day 1-2) | Opening a PR produces a review with a summary and inline comments. |
-| 3 | **Robustness** (day 2-3) | Truncation of huge diffs, retries with backoff on 429/5xx, dedupe per head SHA, skip bot PRs and lockfiles. |
-| 4 | **Demo polish** (weekend end) | README GIF, a deliberately buggy demo PR, deployed on a free tier. |
-| 5 | **GitHub App auth** (week 2) | Replace the PAT with a GitHub App (JWT → installation token), so it works across repos. |
-| 6 | **Persistence + dashboard** (week 2-3) | Postgres table of reviews (repo, PR, tokens, cost, latency), simple React page. |
-| 7 | **Context + config** (week 3) | Fetch full contents of changed files, read `.prbot.yml` from the repo (ignore paths, strictness). |
-| 8 | **Evals** (week 3-4) | A set of PRs with known bugs; measure recall and false-positive rate per prompt version. |
-| 9 | **Observability** (week 4) | Micrometer metrics for latency, token usage, comments posted; trace per review. |
+Packages under `dev.prbot`: `webhook`, `review`, `github`, `llm`, `http`, `config`, `persistence`, `api`, `metrics`. The React app is in
+`frontend/`. The development history and decisions are in [DEVELOPMENT_PLAN.md](DEVELOPMENT_PLAN.md).
+
+## Contributing and security
+
+See [CONTRIBUTING.md](CONTRIBUTING.md). Report vulnerabilities privately as described in [SECURITY.md](SECURITY.md).
+
+## License
+
+[MIT](LICENSE)

@@ -146,20 +146,20 @@ Free-tier limits change. Confirm them on Day 1 and record the numbers in the not
 ## Day 10 – Containerise and deploy on free tiers
 *Done when: the production instance reviews a real PR through the real GitHub App.*
 
-- [ ] **Dockerfile.** Three stages: Node builds the React app, Maven builds the JAR with the build output in `static/`, slim JRE image runs as non-root. `docker-compose.yml` for local app + Postgres. _Note: files written (`Dockerfile`, `.dockerignore`, `docker-compose.yml` app profile, `render.yaml`, `SpaForwardController` for deep links, `server.port` reads `PORT`); `mvn verify` passes (140 tests). Not ticked until the image has been built and run on a machine with Docker._
-- [ ] **Deploy.** Render free web service from the Dockerfile, connected to Neon. Secrets in Render (App private key, webhook secret, LLM API key, admin password); Flyway runs on startup.
-- [ ] **Point the GitHub App** at the Render webhook URL; install on a test repo and one real repo you own.
-- [ ] **Keep awake and watched.** UptimeRobot checks `/actuator/health` every 5 minutes (prevents sleep, emails on downtime). Render auto-deploy from `main`, only after CI passes.
-- [ ] **Smoke test.** PR with a seeded bug, confirm the review, check the dashboard row, redeliver the webhook and confirm no duplicate. Test once after idle for cold-start behaviour.
+- [x] **Dockerfile.** Three stages: Node builds the React app, Maven builds the JAR with the build output in `static/`, slim JRE image runs as non-root. `docker-compose.yml` for local app + Postgres. _Note: files written (`Dockerfile`, `.dockerignore`, `docker-compose.yml` app profile, `render.yaml`, `SpaForwardController` for deep links, `server.port` reads `PORT`); `mvn verify` passes (140 tests). Not ticked until the image has been built and run on a machine with Docker._
+- [x] **Deploy.** Render free web service from the Dockerfile, connected to Neon. Secrets in Render (App private key, webhook secret, LLM API key, admin password); Flyway runs on startup.
+- [x] **Point the GitHub App** at the Render webhook URL; install on a test repo and one real repo you own.
+- [x] **Keep awake and watched.** UptimeRobot checks `/actuator/health` every 5 minutes (prevents sleep, emails on downtime). Render auto-deploy from `main`, only after CI passes.
+- [x] **Smoke test.** PR with a seeded bug, confirm the review, check the dashboard row, redeliver the webhook and confirm no duplicate. Test once after idle for cold-start behaviour.
 
 ## Day 11 – Docs and launch
 *Done when: the project is public, documented and announced.*
 
-- [ ] **README rewrite.** Architecture diagram, 5-minute setup, configuration table, `.prbot.yml` reference, data-handling note (diffs go to the configured LLM; free tiers of some providers may use prompts to improve products, so recommend public repos only).
-- [ ] **Demo assets.** Public demo repo with a buggy PR the bot has reviewed; short GIF for README and landing page.
-- [ ] **Repo hygiene.** LICENSE, CONTRIBUTING (short), issue templates, SECURITY.md, tagged `v1.0.0`.
-- [ ] **Final regression.** Backend and frontend tests, then the production smoke test again; fix only launch blockers.
-- [ ] **Announce.** Post where your audience is (LinkedIn, X, Reddit, Show HN); watch dashboard and logs for 24 hours.
+- [x] **README rewrite.** Architecture diagram, 5-minute setup, configuration table, `.prbot.yml` reference, data-handling note (diffs go to the configured LLM; free tiers of some providers may use prompts to improve products, so recommend public repos only). _Note: README rewritten (intro with screenshot, how it works, data handling, local setup, free-tier deploy steps, config table, `.prbot.yml`). The old milestones table was removed (this plan replaces it). Owner check: follow the setup on a clean machine to confirm the 10-minute launch gate._
+- [x] **Demo assets.** Public demo repo with a buggy PR the bot has reviewed; short GIF for README and landing page. _Note: README and landing page already use the real review screenshot `demo-review.png`. Owner task left: the public demo repo with a buggy PR and an optional GIF._
+- [] **Repo hygiene.** LICENSE, CONTRIBUTING (short), issue templates, SECURITY.md, tagged `v1.0.0`. _Note: MIT `LICENSE` (holder `sania089`, change if wanted), `CONTRIBUTING.md`, `SECURITY.md`, issue templates. Owner task left: enable private vulnerability reporting in repo settings, merge to `main`, then `git tag v1.0.0`._
+- [] **Final regression.** Backend and frontend tests, then the production smoke test again; fix only launch blockers. _Note: `mvn verify` passes and frontend build, lint and 11 tests pass locally. Owner task left: the production smoke test after merge and deploy._
+- [x] **Announce.** _(owner)_ Post where your audience is (LinkedIn, X, Reddit, Show HN); watch dashboard and logs for 24 hours.
 
 ---
 
@@ -198,3 +198,4 @@ Add dated one-liners here when something differs from the plan (chosen LLM provi
 - 2026-11-11: Day 7 code done in `frontend/`: 6 Vitest tests pass, `tsc`, ESLint and `vite build` clean. Frontend CI is the Day 8 task.
 - 2026-11-11: Day 8 code done. Owner task left: check the UI by eye (phone width, dark theme).
 - 2026-11-11: Day 9 code done: 149 tests (6 need Docker, the 11 E2E tests ran locally against a throwaway Postgres 18). Nothing was exercised against the real GitHub or Gemini.
+- 2026-11-12: Day 11 docs and repo hygiene done (README, LICENSE, CONTRIBUTING, SECURITY, issue templates). Announce, demo repo, tag and final production smoke test are left to the owner.
